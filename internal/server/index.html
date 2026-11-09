@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Z407 Remote</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314b8a6'/%3E%3Cpath d='M9 13v6h4l5 4V9l-5 4zM21 12a5 5 0 010 8' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0f1214;
+  --surface: #181c1f;
+  --surface-2: #20262a;
+  --border: #2b3338;
+  --text: #e8ecee;
+  --muted: #8b979d;
+  --accent: #14b8a6;
+  --accent-ink: #04201c;
+  --ok: #34d399;
+  --bad: #f87171;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f3f5f6;
+    --surface: #ffffff;
+    --surface-2: #eceff1;
+    --border: #d9dee1;
+    --text: #1a2024;
+    --muted: #5d6a71;
+    --accent: #0f9488;
+    --accent-ink: #ffffff;
+    --ok: #059669;
+    --bad: #dc2626;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  -webkit-user-select: none;
+  user-select: none;
+}
+main { max-width: 420px; margin: 0 auto; display: grid; gap: 14px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px; }
+h1 { font-size: 1.15rem; margin: 0; letter-spacing: .02em; }
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .8rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 5px 11px; border-radius: 999px;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+.pill.on .dot { background: var(--ok); }
+.pill.on { color: var(--text); }
+
+section {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px;
+}
+h2 {
+  margin: 0 0 10px; font-size: .72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
+}
+.row { display: grid; gap: 10px; }
+.c2 { grid-template-columns: repeat(2, 1fr); }
+.c3 { grid-template-columns: repeat(3, 1fr); }
+
+button {
+  font: inherit; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px; min-height: 52px; padding: 0 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; touch-action: manipulation;
+  transition: transform .08s, background .15s;
+}
+button:active { transform: scale(.96); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; min-height: 60px; }
+button.danger { color: var(--bad); }
+svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+svg .fill { fill: currentColor; stroke: none; }
+
+.meter { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin: 2px 0 12px; }
+.meter > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.meter-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); }
+
+.note { font-size: .75rem; color: var(--muted); margin: 10px 0 0; }
+details { font-size: .85rem; color: var(--muted); }
+details summary { cursor: pointer; padding: 4px 0; }
+details ul { margin: 8px 0 0; padding-left: 18px; }
+details li { margin-bottom: 6px; }
+footer { text-align: center; font-size: .72rem; color: var(--muted); padding: 4px 8px; }
+footer a { color: inherit; }
+
+#toast {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--surface-2); border: 1px solid var(--border);
+  padding: 10px 16px; border-radius: 10px; font-size: .9rem;
+  max-width: calc(100% - 32px); transition: opacity .2s, transform .2s;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#toast.err { border-color: var(--bad); color: var(--bad); }
+
+dialog {
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; width: min(340px, calc(100% - 32px));
+}
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog p { margin: 0 0 16px; }
+dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Z407 Remote</h1>
+    <span class="pill" id="conn"><span class="dot"></span><span id="connText">Connecting…</span></span>
+  </header>
+
+  <section aria-label="Speakers">
+    <h2>Speakers</h2>
+    <div class="meter" role="img" aria-label="Estimated volume"><i id="volBar"></i></div>
+    <div class="meter-label"><span>Volume (estimated)</span><span id="volText">–</span></div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" data-cmd="play_pause">
+        <svg viewBox="0 0 24 24"><path class="fill" d="M7 5l9 7-9 7zM18 5v14h-2V5z" stroke="none"/></svg>
+        Play / Pause
+      </button>
+      <div class="row c3">
+        <button data-cmd="prev_speaker" aria-label="Previous track"><svg viewBox="0 0 24 24"><path class="fill" d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button data-cmd="vol_down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button data-cmd="vol_up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+      <div class="row c3">
+        <button data-cmd="next_speaker" aria-label="Next track"><svg viewBox="0 0 24 24"><path class="fill" d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+        <button data-cmd="bass_down">Bass −</button>
+        <button data-cmd="bass_up">Bass +</button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="Input">
+    <h2>Input</h2>
+    <div class="row c3">
+      <button data-cmd="input_bluetooth">Bluetooth</button>
+      <button data-cmd="input_aux">AUX</button>
+      <button data-cmd="input_usb">USB</button>
+    </div>
+  </section>
+
+  <section aria-label="Computer media keys">
+    <h2>This computer</h2>
+    <div class="row c3">
+      <button data-cmd="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path class="fill" d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button data-cmd="play_pause_pc" aria-label="Play or pause"><svg viewBox="0 0 24 24"><path class="fill" d="M7 5l9 7-9 7zM18 5v14h-2V5z" stroke="none"/></svg></button>
+      <button data-cmd="next" aria-label="Next"><svg viewBox="0 0 24 24"><path class="fill" d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      <button data-cmd="vol_down_pc" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10zM17 9.5a3.5 3.5 0 010 5"/></svg></button>
+      <button data-cmd="mute_pc" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10zM17 9l4 6M21 9l-4 6"/></svg></button>
+      <button data-cmd="vol_up_pc" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10zM17 8a5.5 5.5 0 010 8M19.5 5.5a9 9 0 010 13"/></svg></button>
+    </div>
+    <p class="note">Sends media keys to the machine running this app.</p>
+  </section>
+
+  <section aria-label="Advanced">
+    <h2>Advanced</h2>
+    <div class="row c2">
+      <button data-cmd="bluetooth_pair" data-confirm="Put the speakers into pairing mode?">Pair</button>
+      <button class="danger" data-cmd="factory_reset" data-confirm="Factory reset the speakers? Paired devices will be erased.">Factory reset</button>
+    </div>
+  </section>
+
+  <section aria-label="Help">
+    <details>
+      <summary>Troubleshooting</summary>
+      <ul>
+        <li>The speakers accept one Bluetooth LE controller at a time. If a phone is connected to them, disconnect it first.</li>
+        <li>Page not loading from your phone? Check the firewall and VPN settings on the computer running the app, and make sure both devices are on the same network.</li>
+        <li>Wrong address in the console? A VPN or virtual machine may be advertising a different network interface; try another address from the list.</li>
+      </ul>
+    </details>
+  </section>
+
+  <footer>
+    Protocol research by <a href="https://github.com/freundTech/logi-z407-reverse-engineering" target="_blank" rel="noopener">freundTech</a>.
+    Unofficial; not affiliated with Logitech.
+  </footer>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="confirm">
+  <p id="confirmText"></p>
+  <form method="dialog">
+    <button value="cancel">Cancel</button>
+    <button value="ok" class="primary">Confirm</button>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const conn = $('conn'), connText = $('connText');
+  const volBar = $('volBar'), volText = $('volText');
+  const toast = $('toast'), dlg = $('confirm');
+  let toastTimer;
+
+  function say(msg, isErr) {
+    toast.textContent = msg;
+    toast.classList.toggle('err', !!isErr);
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  async function send(cmd) {
+    try {
+      const res = await fetch('/api/' + encodeURIComponent(cmd), { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) { say('Sent'); setTimeout(refresh, 400); }
+      else say(data.error || 'Request failed', true);
+    } catch {
+      say('Cannot reach the app', true);
+    }
+  }
+
+  async function refresh() {
+    try {
+      const data = await (await fetch('/api/status')).json();
+      conn.classList.toggle('on', !!data.connected);
+      connText.textContent = data.connected ? 'Connected' : 'Not connected';
+      if (typeof data.volume === 'number') {
+        volBar.style.width = data.volume + '%';
+        volText.textContent = data.volume + '%';
+      }
+    } catch {
+      conn.classList.remove('on');
+      connText.textContent = 'App unreachable';
+    }
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-cmd]');
+    if (!btn) return;
+    const cmd = btn.dataset.cmd;
+    if (btn.dataset.confirm) {
+      $('confirmText').textContent = btn.dataset.confirm;
+      dlg.returnValue = '';
+      dlg.onclose = () => { if (dlg.returnValue === 'ok') send(cmd); };
+      dlg.showModal();
+    } else {
+      send(cmd);
+    }
+  });
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>
