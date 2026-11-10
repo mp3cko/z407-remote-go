@@ -12,8 +12,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/mp3cko/z407-remote-go/internal/media"
 )
 
 type fakeSpeaker struct {
@@ -49,45 +47,25 @@ func (f *fakeSpeaker) BassDown() error       { return f.rec("BassDown") }
 func (f *fakeSpeaker) NextTrack() error      { return f.rec("NextTrack") }
 func (f *fakeSpeaker) PrevTrack() error      { return f.rec("PrevTrack") }
 
-type fakeKeys struct {
-	mu   sync.Mutex
-	keys []media.Key
-	err  error
-}
-
-func (f *fakeKeys) Press(k media.Key) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.keys = append(f.keys, k)
-	return f.err
-}
-
 var quiet = WithLogger(log.New(io.Discard, "", 0))
 
-// command -> exactly one of method / key.
+// command -> speaker method.
 var cases = []struct {
 	cmd    string
 	method string
-	key    media.Key
 }{
-	{"vol_up", "VolumeUp", ""},
-	{"vol_down", "VolumeDown", ""},
-	{"play_pause", "PlayPause", ""},
-	{"play_pause_pc", "", media.PlayPause},
-	{"vol_up_pc", "", media.VolUp},
-	{"vol_down_pc", "", media.VolDown},
-	{"mute_pc", "", media.Mute},
-	{"input_aux", "InputAux", ""},
-	{"input_bluetooth", "InputBluetooth", ""},
-	{"bluetooth_pair", "BluetoothPair", ""},
-	{"factory_reset", "FactoryReset", ""},
-	{"next", "", media.Next},
-	{"prev", "", media.Prev},
-	{"input_usb", "InputUSB", ""},
-	{"bass_up", "BassUp", ""},
-	{"bass_down", "BassDown", ""},
-	{"next_speaker", "NextTrack", ""},
-	{"prev_speaker", "PrevTrack", ""},
+	{"vol_up", "VolumeUp"},
+	{"vol_down", "VolumeDown"},
+	{"play_pause", "PlayPause"},
+	{"input_aux", "InputAux"},
+	{"input_bluetooth", "InputBluetooth"},
+	{"bluetooth_pair", "BluetoothPair"},
+	{"factory_reset", "FactoryReset"},
+	{"input_usb", "InputUSB"},
+	{"bass_up", "BassUp"},
+	{"bass_down", "BassDown"},
+	{"next_speaker", "NextTrack"},
+	{"prev_speaker", "PrevTrack"},
 }
 
 func do(h http.Handler, method, path string) *httptest.ResponseRecorder {
@@ -111,17 +89,13 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 func TestCommands(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.cmd, func(t *testing.T) {
-			sp, kb := &fakeSpeaker{connected: true}, &fakeKeys{}
-			rec := do(New(sp, kb, quiet), "POST", "/api/"+c.cmd)
+			sp := &fakeSpeaker{connected: true}
+			rec := do(New(sp, quiet), "POST", "/api/"+c.cmd)
 			if rec.Code != 200 || decode(t, rec)["success"] != true {
 				t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 			}
-			if c.method != "" {
-				if g := sp.got(); len(g) != 1 || g[0] != c.method || len(kb.keys) != 0 {
-					t.Fatalf("calls=%v keys=%v", g, kb.keys)
-				}
-			} else if len(sp.got()) != 0 || len(kb.keys) != 1 || kb.keys[0] != c.key {
-				t.Fatalf("calls=%v keys=%v", sp.got(), kb.keys)
+			if g := sp.got(); len(g) != 1 || g[0] != c.method {
+				t.Fatalf("calls=%v", g)
 			}
 		})
 	}
@@ -133,21 +107,21 @@ func TestNotConnected(t *testing.T) {
 		names = append(names, c.cmd)
 	}
 	for _, n := range names {
-		sp, kb := &fakeSpeaker{}, &fakeKeys{}
-		rec := do(New(sp, kb, quiet), "POST", "/api/"+n)
+		sp := &fakeSpeaker{}
+		rec := do(New(sp, quiet), "POST", "/api/"+n)
 		m := decode(t, rec)
 		if rec.Code != 404 || m["success"] != false ||
 			m["error"] != "Speakers not connected. Waiting for background connection..." {
 			t.Fatalf("%s: code=%d body=%s", n, rec.Code, rec.Body)
 		}
-		if len(sp.got()) != 0 || len(kb.keys) != 0 {
+		if len(sp.got()) != 0 {
 			t.Fatalf("%s: side effects while disconnected", n)
 		}
 	}
 }
 
 func TestUnknownCommand(t *testing.T) {
-	rec := do(New(&fakeSpeaker{connected: true}, &fakeKeys{}, quiet), "POST", "/api/bogus")
+	rec := do(New(&fakeSpeaker{connected: true}, quiet), "POST", "/api/bogus")
 	m := decode(t, rec)
 	if rec.Code != 400 || m["success"] != false || m["error"] != "Unknown command" {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
@@ -156,28 +130,15 @@ func TestUnknownCommand(t *testing.T) {
 
 func TestSpeakerError500(t *testing.T) {
 	sp := &fakeSpeaker{connected: true, err: errors.New("boom")}
-	rec := do(New(sp, &fakeKeys{}, quiet), "POST", "/api/vol_up")
+	rec := do(New(sp, quiet), "POST", "/api/vol_up")
 	m := decode(t, rec)
 	if rec.Code != 500 || m["success"] != false || m["error"] != "boom" {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 	}
 }
 
-func TestMediaKeyErrorSwallowed(t *testing.T) {
-	var logs bytes.Buffer
-	kb := &fakeKeys{err: errors.New("no display")}
-	h := New(&fakeSpeaker{connected: true}, kb, WithLogger(log.New(&logs, "", 0)))
-	rec := do(h, "POST", "/api/mute_pc")
-	if rec.Code != 200 || decode(t, rec)["success"] != true {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
-	}
-	if !bytes.Contains(logs.Bytes(), []byte("no display")) {
-		t.Fatalf("error not logged: %q", logs.String())
-	}
-}
-
 func TestMethodNotAllowed(t *testing.T) {
-	h := New(&fakeSpeaker{connected: true}, &fakeKeys{}, quiet)
+	h := New(&fakeSpeaker{connected: true}, quiet)
 	for _, m := range []string{"GET", "PUT", "DELETE"} {
 		if rec := do(h, m, "/api/vol_up"); rec.Code != 405 {
 			t.Fatalf("%s: code=%d", m, rec.Code)
@@ -189,7 +150,7 @@ func TestMethodNotAllowed(t *testing.T) {
 }
 
 func TestNotFound(t *testing.T) {
-	h := New(&fakeSpeaker{connected: true}, &fakeKeys{}, quiet)
+	h := New(&fakeSpeaker{connected: true}, quiet)
 	for _, p := range []string{"/nope", "/api/", "/api/a/b", "/index.html"} {
 		if rec := do(h, "GET", p); rec.Code != 404 {
 			t.Fatalf("%s: code=%d", p, rec.Code)
@@ -202,7 +163,7 @@ func TestIndexByteIdentical(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rec := do(New(&fakeSpeaker{}, &fakeKeys{}, quiet), "GET", "/")
+	rec := do(New(&fakeSpeaker{}, quiet), "GET", "/")
 	if rec.Code != 200 || !bytes.Equal(rec.Body.Bytes(), want) {
 		t.Fatalf("code=%d, body differs from index.html", rec.Code)
 	}
@@ -213,7 +174,7 @@ func TestIndexByteIdentical(t *testing.T) {
 
 func TestStatus(t *testing.T) {
 	for _, sp := range []*fakeSpeaker{{connected: true, volume: 55}, {}} {
-		rec := do(New(sp, &fakeKeys{}, quiet), "GET", "/api/status")
+		rec := do(New(sp, quiet), "GET", "/api/status")
 		m := decode(t, rec)
 		if rec.Code != 200 || len(m) != 2 || m["connected"] != sp.connected || m["volume"] != float64(sp.volume) {
 			t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
@@ -222,8 +183,8 @@ func TestStatus(t *testing.T) {
 }
 
 func TestConcurrent(t *testing.T) {
-	sp, kb := &fakeSpeaker{connected: true}, &fakeKeys{}
-	h := New(sp, kb, quiet)
+	sp := &fakeSpeaker{connected: true}
+	h := New(sp, quiet)
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
@@ -237,14 +198,14 @@ func TestConcurrent(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	if len(sp.got())+len(kb.keys) != 100 {
-		t.Fatalf("total calls = %d", len(sp.got())+len(kb.keys))
+	if len(sp.got()) != 100 {
+		t.Fatalf("total calls = %d", len(sp.got()))
 	}
 }
 
 func TestDefaultLogger(t *testing.T) {
 	// Without WithLogger, the default logger is used and must not panic.
-	h := New(&fakeSpeaker{connected: true, err: errors.New("x")}, &fakeKeys{})
+	h := New(&fakeSpeaker{connected: true, err: errors.New("x")})
 	if rec := do(h, "POST", "/api/vol_up"); rec.Code != 500 {
 		t.Fatalf("code=%d", rec.Code)
 	}
@@ -252,7 +213,7 @@ func TestDefaultLogger(t *testing.T) {
 
 func TestAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	h := New(&fakeSpeaker{connected: true}, &fakeKeys{}, WithLogger(log.New(&buf, "", 0)))
+	h := New(&fakeSpeaker{connected: true}, WithLogger(log.New(&buf, "", 0)))
 	for _, c := range []struct{ m, p string }{{"POST", "/api/vol_up"}, {"POST", "/api/nope"}, {"GET", "/api/status"}} {
 		req := httptest.NewRequest(c.m, c.p, nil)
 		req.RemoteAddr = "192.168.1.50:4321"

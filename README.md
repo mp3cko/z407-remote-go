@@ -6,7 +6,6 @@ A small web remote for the Logitech Z407 speakers. It runs on a computer with Bl
 
 - Speaker volume, bass, play/pause and track skip
 - Input selection (Bluetooth, AUX, USB), pairing and factory reset
-- Media keys for the computer running the app (play/pause, next/previous, volume, mute)
 - Single static binary for Windows, Linux and macOS
 
 ## Install
@@ -23,8 +22,8 @@ make test
 
 ### Platform notes
 
-- **Linux:** BlueZ is required; `xdotool` is needed for the computer media keys.
-- **macOS:** build natively on a Mac (cgo and the Xcode command line tools are required; it cannot be cross-compiled). Allow Bluetooth for your terminal when prompted. Media keys need the Accessibility permission (System Settings > Privacy & Security).
+- **Linux:** BlueZ is required.
+- **macOS:** build natively on a Mac (cgo and the Xcode command line tools are required; it cannot be cross-compiled). Allow Bluetooth for your terminal when prompted.
 - **Windows:** Windows 10 or 11 with a Bluetooth LE adapter. Make sure the speakers are already paired in Windows settings.
 
 ## Usage

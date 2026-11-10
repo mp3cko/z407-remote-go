@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/ble"
-	"github.com/mp3cko/z407-remote-go/internal/media"
 	"github.com/mp3cko/z407-remote-go/internal/server"
 	"github.com/mp3cko/z407-remote-go/internal/speaker"
 )
@@ -44,7 +43,6 @@ type backend interface {
 // deps are the replaceable collaborators of runWith.
 type deps struct {
 	sp   backend
-	keys media.Presser
 	dial func(network, address string) (net.Conn, error)
 	// connected fires when the speakers connect; the access URL is shown
 	// once, on the first signal.
@@ -91,7 +89,6 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	return runWith(ctx, args, stdout, deps{
 		sp:        speaker.NewManager(ble.NewDialer(), speaker.WithLogger(log.Printf), speaker.WithOnConnect(onConnect)),
-		keys:      media.New(),
 		dial:      net.Dial,
 		ifaces:    systemIfaces,
 		connected: up,
@@ -121,7 +118,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	}
 
 	srv := &http.Server{
-		Handler:           server.New(d.sp, d.keys),
+		Handler:           server.New(d.sp),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

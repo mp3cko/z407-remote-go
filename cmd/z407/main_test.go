@@ -13,8 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/mp3cko/z407-remote-go/internal/media"
 )
 
 type safeBuf struct {
@@ -47,10 +45,6 @@ func (f *fakeBackend) BassUp() error           { return nil }
 func (f *fakeBackend) BassDown() error         { return nil }
 func (f *fakeBackend) NextTrack() error        { return nil }
 func (f *fakeBackend) PrevTrack() error        { return nil }
-
-type nopKeys struct{}
-
-func (nopKeys) Press(media.Key) error { return nil }
 
 type fakeConn struct {
 	net.Conn
@@ -114,7 +108,7 @@ func TestRunStartStop(t *testing.T) {
 	out := &safeBuf{}
 	addrCh := make(chan net.Addr, 1)
 	conn := make(chan struct{}, 2)
-	d := deps{sp: fb, keys: nopKeys{},
+	d := deps{sp: fb,
 		dial:      dialerWith(&net.UDPAddr{IP: net.ParseIP("10.1.2.3")}, nil),
 		connected: conn,
 		ready:     func(a net.Addr) { addrCh <- a }}
@@ -169,7 +163,7 @@ func TestRunStartStop(t *testing.T) {
 }
 
 func TestRunBadFlagsAndHelp(t *testing.T) {
-	d := deps{sp: newFakeBackend(), keys: nopKeys{}, dial: dialerWith(nil, errors.New("x"))}
+	d := deps{sp: newFakeBackend(), dial: dialerWith(nil, errors.New("x"))}
 	if err := runWith(context.Background(), []string{"--port", "abc"}, io.Discard, d); err == nil {
 		t.Error("expected flag error")
 	}
@@ -185,7 +179,7 @@ func TestRunPortInUse(t *testing.T) {
 	}
 	defer ln.Close()
 	port := ln.Addr().(*net.TCPAddr).Port
-	d := deps{sp: newFakeBackend(), keys: nopKeys{}, dial: dialerWith(nil, errors.New("x"))}
+	d := deps{sp: newFakeBackend(), dial: dialerWith(nil, errors.New("x"))}
 	err = runWith(context.Background(), []string{"-ip", "127.0.0.1", "-port", strconv.Itoa(port)}, io.Discard, d)
 	if err == nil {
 		t.Fatal("expected listen error")
@@ -205,7 +199,7 @@ func (stuckBackend) Run(ctx context.Context) { <-ctx.Done(); select {} }
 func TestShutdownWaitIsBounded(t *testing.T) {
 	out := &safeBuf{}
 	addrCh := make(chan net.Addr, 1)
-	d := deps{sp: stuckBackend{newFakeBackend()}, keys: nopKeys{},
+	d := deps{sp: stuckBackend{newFakeBackend()},
 		dial:      dialerWith(&net.UDPAddr{IP: net.ParseIP("10.1.2.3")}, nil),
 		waitLimit: 50 * time.Millisecond,
 		ready:     func(a net.Addr) { addrCh <- a }}

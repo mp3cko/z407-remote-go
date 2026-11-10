@@ -21,7 +21,7 @@ jobs:
           - { os: ubuntu-latest,  goos: linux,   goarch: amd64, cgo: '0' }
           - { os: ubuntu-latest,  goos: linux,   goarch: arm64, cgo: '0' }
           - { os: windows-latest, goos: windows, goarch: amd64, cgo: '0' }
-          # The macOS media keys use CoreGraphics through cgo, so macOS
+          # The macOS Bluetooth backend (CoreBluetooth) uses cgo, so macOS
           # builds must run on a Mac (arm64 runner can also target amd64).
           - { os: macos-latest,   goos: darwin,  goarch: arm64, cgo: '1' }
           - { os: macos-latest,   goos: darwin,  goarch: amd64, cgo: '1' }

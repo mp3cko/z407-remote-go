@@ -8,8 +8,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/mp3cko/z407-remote-go/internal/media"
 )
 
 //go:embed index.html
@@ -42,42 +40,24 @@ func WithLogger(l *log.Logger) Option { return func(s *srv) { s.log = l } }
 
 type srv struct {
 	sp   Speaker
-	keys media.Presser
 	log  *log.Logger
 	cmds map[string]func() error
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
-func New(sp Speaker, keys media.Presser, opts ...Option) http.Handler {
-	s := &srv{sp: sp, keys: keys, log: log.Default()}
+func New(sp Speaker, opts ...Option) http.Handler {
+	s := &srv{sp: sp, log: log.Default()}
 	for _, o := range opts {
 		o(s)
-	}
-	// Speaker errors are reported to the client. Media-key errors are only
-	// logged by key() below and the request still answers success, since the
-	// key press is best effort on the host.
-	key := func(k media.Key) func() error {
-		return func() error {
-			if err := s.keys.Press(k); err != nil {
-				s.log.Printf("media key %s: %v", k, err)
-			}
-			return nil
-		}
 	}
 	s.cmds = map[string]func() error{
 		"vol_up":          sp.VolumeUp,
 		"vol_down":        sp.VolumeDown,
 		"play_pause":      sp.PlayPause,
-		"play_pause_pc":   key(media.PlayPause),
-		"vol_up_pc":       key(media.VolUp),
-		"vol_down_pc":     key(media.VolDown),
-		"mute_pc":         key(media.Mute),
 		"input_aux":       sp.InputAux,
 		"input_bluetooth": sp.InputBluetooth,
 		"bluetooth_pair":  sp.BluetoothPair,
 		"factory_reset":   sp.FactoryReset,
-		"next":            key(media.Next),
-		"prev":            key(media.Prev),
 		"input_usb":       sp.InputUSB,
 		"bass_up":         sp.BassUp,
 		"bass_down":       sp.BassDown,
