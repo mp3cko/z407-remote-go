@@ -15,10 +15,13 @@ Download the archive for your platform from the [releases page](https://github.c
 Or build it yourself (Go 1.26.1 or newer):
 
 ```bash
-make build     # dist/z407 for the current OS
-make windows   # dist/Z407_Control_Windows.exe (cross-compiles from any OS)
+make build          # dist/z407 for the current OS
+make cross          # Linux (amd64, arm64) and Windows from any OS, plus macOS when run on a Mac
+make windows-amd64  # a single target, e.g. dist/z407_windows_amd64.exe
 make test
 ```
+
+`make help` lists all targets. The macOS targets (`darwin-arm64`, `darwin-amd64`) only work on a Mac, because the Bluetooth backend needs cgo.
 
 ### Platform notes
 
