@@ -5,6 +5,8 @@ import (
 	"net"
 	"sort"
 	"strings"
+
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
 
 // hostAddr is a LAN address the UI can be reached on.
@@ -101,7 +103,7 @@ func systemIfaces() []ifaceAddrs {
 func urlLines(addrs []hostAddr, port int) string {
 	var b strings.Builder
 	for _, a := range addrs {
-		fmt.Fprintf(&b, "%s      👉 http://%s:%d %s", yellow, a.IP, port, reset)
+		b.WriteString(logx.Yellow(fmt.Sprintf("      👉 http://%s:%d", a.IP, port)))
 		if a.Iface != "" {
 			fmt.Fprintf(&b, " (%s)", a.Iface)
 		}

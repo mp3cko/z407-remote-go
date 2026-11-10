@@ -4,10 +4,12 @@ package server
 import (
 	_ "embed"
 	"encoding/json"
-	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
 
 //go:embed index.html
@@ -35,18 +37,18 @@ type Speaker interface {
 // Option customises the handler.
 type Option func(*srv)
 
-// WithLogger sets the logger (default: the standard logger).
-func WithLogger(l *log.Logger) Option { return func(s *srv) { s.log = l } }
+// WithLogger sets the logger (default: colored output on stderr).
+func WithLogger(l *logx.Logger) Option { return func(s *srv) { s.log = l } }
 
 type srv struct {
 	sp   Speaker
-	log  *log.Logger
+	log  *logx.Logger
 	cmds map[string]func() error
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
 func New(sp Speaker, opts ...Option) http.Handler {
-	s := &srv{sp: sp, log: log.Default()}
+	s := &srv{sp: sp, log: logx.New(os.Stderr)}
 	for _, o := range opts {
 		o(s)
 	}
@@ -99,7 +101,7 @@ func (s *srv) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := fn(); err != nil {
-		s.log.Printf("command execution error: %v", err)
+		s.log.Errorf("command execution error: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"success": false, "error": err.Error()})
 		return
 	}
@@ -130,6 +132,10 @@ func (s *srv) accessLog(next http.Handler) http.Handler {
 		if err != nil {
 			host = r.RemoteAddr
 		}
-		s.log.Printf("%s %s -> %d (%s) from %s", r.Method, r.URL.Path, sw.code, time.Since(start).Round(time.Microsecond), host)
+		level := logx.Info
+		if sw.code >= http.StatusBadRequest {
+			level = logx.Error // failed requests stand out
+		}
+		s.log.Logf(level, "%s %s -> %d (%s) from %s", r.Method, r.URL.Path, sw.code, time.Since(start).Round(time.Microsecond), host)
 	})
 }

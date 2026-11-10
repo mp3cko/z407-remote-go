@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
 
 type fakeSpeaker struct {
@@ -47,7 +48,7 @@ func (f *fakeSpeaker) BassDown() error       { return f.rec("BassDown") }
 func (f *fakeSpeaker) NextTrack() error      { return f.rec("NextTrack") }
 func (f *fakeSpeaker) PrevTrack() error      { return f.rec("PrevTrack") }
 
-var quiet = WithLogger(log.New(io.Discard, "", 0))
+var quiet = WithLogger(logx.NewWriter(io.Discard, false))
 
 // command -> speaker method.
 var cases = []struct {
@@ -213,7 +214,7 @@ func TestDefaultLogger(t *testing.T) {
 
 func TestAccessLog(t *testing.T) {
 	var buf bytes.Buffer
-	h := New(&fakeSpeaker{connected: true}, WithLogger(log.New(&buf, "", 0)))
+	h := New(&fakeSpeaker{connected: true}, WithLogger(logx.NewWriter(&buf, true)))
 	for _, c := range []struct{ m, p string }{{"POST", "/api/vol_up"}, {"POST", "/api/nope"}, {"GET", "/api/status"}} {
 		req := httptest.NewRequest(c.m, c.p, nil)
 		req.RemoteAddr = "192.168.1.50:4321"

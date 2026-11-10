@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -21,18 +20,12 @@ import (
 	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/ble"
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 	"github.com/mp3cko/z407-remote-go/internal/server"
 	"github.com/mp3cko/z407-remote-go/internal/speaker"
 )
 
-const (
-	green  = "\033[92m"
-	yellow = "\033[93m"
-	red    = "\033[91m"
-	reset  = "\033[0m"
-
-	shutdownWait = 5 * time.Second
-)
+const shutdownWait = 5 * time.Second
 
 // backend is a speaker connection manager that can be run in the background.
 type backend interface {
@@ -42,13 +35,10 @@ type backend interface {
 
 // deps are the replaceable collaborators of runWith.
 type deps struct {
-	sp   backend
-	dial func(network, address string) (net.Conn, error)
-	// connected fires when the speakers connect; the access URL is shown
-	// once, on the first signal.
-	connected <-chan struct{}
-	ifaces    func() []ifaceAddrs // nil = system interfaces
-	ready     func(addr net.Addr) // optional; called once listening
+	sp     backend
+	dial   func(network, address string) (net.Conn, error)
+	ifaces func() []ifaceAddrs // nil = system interfaces
+	ready  func(addr net.Addr) // optional; called once listening
 	// waitLimit bounds the wait for background goroutines at shutdown
 	// (default shutdownWait).
 	waitLimit time.Duration
@@ -80,18 +70,11 @@ func isTerminal(f *os.File) bool {
 
 // run parses args and serves until ctx is cancelled.
 func run(ctx context.Context, args []string, stdout io.Writer) error {
-	up := make(chan struct{}, 1)
-	onConnect := func() {
-		select {
-		case up <- struct{}{}:
-		default:
-		}
-	}
+	lg := logx.New(os.Stderr)
 	return runWith(ctx, args, stdout, deps{
-		sp:        speaker.NewManager(ble.NewDialer(), speaker.WithLogger(log.Printf), speaker.WithOnConnect(onConnect)),
-		dial:      net.Dial,
-		ifaces:    systemIfaces,
-		connected: up,
+		sp:     speaker.NewManager(ble.NewDialer(), speaker.WithLogger(lg.Logf)),
+		dial:   net.Dial,
+		ifaces: systemIfaces,
 	})
 }
 
@@ -125,9 +108,8 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	ctx, cancelBg := context.WithCancel(ctx)
 	defer cancelBg()
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 	go func() { defer wg.Done(); d.sp.Run(ctx) }()
-	go func() { defer wg.Done(); remindOnce(ctx, stdout, d.connected, d.addrs, actualPort) }()
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
@@ -162,15 +144,6 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	return result
 }
 
-// remindOnce prints the access URL once, when the speakers first connect.
-func remindOnce(ctx context.Context, w io.Writer, connected <-chan struct{}, addrs func() []hostAddr, port int) {
-	select {
-	case <-ctx.Done():
-	case <-connected: // nil channel blocks until ctx is done
-		fmt.Fprint(w, reminderText(addrs(), port))
-	}
-}
-
 // getIP returns the local IP used for outbound traffic. UDP "connect" sends
 // nothing; it only makes the OS choose the main interface.
 func getIP(dial func(network, address string) (net.Conn, error)) string {
@@ -188,8 +161,8 @@ func getIP(dial func(network, address string) (net.Conn, error)) string {
 
 func banner(addrs []hostAddr, port int, host string) string {
 	b := "\n" + strings.Repeat("#", 60) + "\n"
-	b += green + "   REMOTE CONTROL AVAILABLE" + reset + "\n"
-	b += green + "   ACCESS FROM ANY BROWSER:" + reset + "\n\n"
+	b += logx.Green("   REMOTE CONTROL AVAILABLE") + "\n"
+	b += logx.Green("   ACCESS FROM ANY BROWSER:") + "\n\n"
 	if host != "0.0.0.0" {
 		b += urlLines([]hostAddr{{IP: host}}, port) + "\n"
 		b += fmt.Sprintf("   (Bound specifically to: %s)\n", host)
@@ -202,13 +175,6 @@ func banner(addrs []hostAddr, port int, host string) string {
 	}
 	b += strings.Repeat("#", 60) + "\n\n"
 	return b
-}
-
-func reminderText(addrs []hostAddr, port int) string {
-	return "\n" + strings.Repeat("-", 50) + "\n" +
-		green + "ℹ️  Z407 CONNECTED. Access from your browser:" + reset + "\n" +
-		urlLines(addrs, port) +
-		strings.Repeat("-", 50) + "\n\n"
 }
 
 // addrs returns the addresses to advertise, best guess first.
@@ -228,7 +194,7 @@ func goodbye() string {
 
 func errorBanner(err error) string {
 	return "\n\n" + strings.Repeat("!", 60) + "\n" +
-		red + "CRITICAL ERROR: The app failed to start." + reset + "\n" +
+		logx.Red("CRITICAL ERROR: The app failed to start.") + "\n" +
 		fmt.Sprintf("Error details: %v\n", err) +
 		strings.Repeat("!", 60) + "\n" +
 		"\nPOSSIBLE CAUSES:\n" +

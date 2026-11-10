@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 	"github.com/mp3cko/z407-remote-go/internal/protocol"
 )
 
@@ -122,7 +123,7 @@ func eventually(t *testing.T, what string, cond func() bool) {
 
 func start(t *testing.T, d Dialer) (*Manager, context.CancelFunc, <-chan struct{}) {
 	t.Helper()
-	m := NewManager(d, WithRetryInterval(2*time.Millisecond), WithHeartbeat(5*time.Millisecond), WithLogger(func(string, ...any) {}))
+	m := NewManager(d, WithRetryInterval(2*time.Millisecond), WithHeartbeat(5*time.Millisecond), WithLogger(func(logx.Level, string, ...any) {}))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { m.Run(ctx); close(done) }()
@@ -364,10 +365,10 @@ func TestDefaultsAndOptionsIgnoreNonPositive(t *testing.T) {
 	if m.retry != 5*time.Second || m.heartbeat != 5*time.Second {
 		t.Fatalf("defaults: %v %v", m.retry, m.heartbeat)
 	}
-	m.logf("noop %d", 1) // nil logger must be safe
+	m.logf(logx.Info, "noop %d", 1) // nil logger must be safe
 	var got string
-	m = NewManager(&fakeDialer{}, WithLogger(func(f string, a ...any) { got = f }))
-	m.logf("x")
+	m = NewManager(&fakeDialer{}, WithLogger(func(_ logx.Level, f string, a ...any) { got = f }))
+	m.logf(logx.Info, "x")
 	if got != "x" {
 		t.Fatal("logger not used")
 	}
@@ -405,14 +406,16 @@ func TestConcurrentUse(t *testing.T) {
 	}
 }
 
-func TestRepeatedFailureLoggedOnceAndOnConnect(t *testing.T) {
+func TestRepeatedFailureLoggedOnce(t *testing.T) {
 	var mu sync.Mutex
 	var lines []string
 	d := &fakeDialer{failN: 5}
-	connects := 0
 	m := NewManager(d, WithRetryInterval(time.Millisecond), WithHeartbeat(5*time.Millisecond),
-		WithLogger(func(f string, a ...any) { mu.Lock(); lines = append(lines, fmt.Sprintf(f, a...)); mu.Unlock() }),
-		WithOnConnect(func() { mu.Lock(); connects++; mu.Unlock() }))
+		WithLogger(func(_ logx.Level, f string, a ...any) {
+			mu.Lock()
+			lines = append(lines, fmt.Sprintf(f, a...))
+			mu.Unlock()
+		}))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { m.Run(ctx); close(done) }()
@@ -429,8 +432,5 @@ func TestRepeatedFailureLoggedOnceAndOnConnect(t *testing.T) {
 	}
 	if fails != 1 {
 		t.Errorf("identical failure logged %d times, want 1: %q", fails, lines)
-	}
-	if connects != 1 {
-		t.Errorf("onConnect called %d times, want 1", connects)
 	}
 }

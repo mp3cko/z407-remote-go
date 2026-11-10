@@ -2,7 +2,10 @@ module github.com/mp3cko/z407-remote-go
 
 go 1.26.1
 
-require tinygo.org/x/bluetooth v0.17.0
+require (
+	golang.org/x/sys v0.50.0
+	tinygo.org/x/bluetooth v0.17.0
+)
 
 require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -15,6 +18,5 @@ require (
 	github.com/tinygo-org/cbgo v0.1.0 // indirect
 	github.com/tinygo-org/pio v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
-	golang.org/x/sys v0.50.0 // indirect
 	tinygo.org/x/espradio v0.5.0 // indirect
 )

@@ -95,9 +95,6 @@ func TestTexts(t *testing.T) {
 	if g := goodbye(); !strings.Contains(g, "Goodbye") {
 		t.Errorf("goodbye: %s", g)
 	}
-	if r := reminderText([]hostAddr{{"", "1.2.3.4"}}, 99); !strings.Contains(r, "http://1.2.3.4:99") {
-		t.Errorf("reminder: %s", r)
-	}
 	if e := errorBanner(errors.New("kaput")); !strings.Contains(e, "kaput") {
 		t.Errorf("error banner: %s", e)
 	}
@@ -107,11 +104,9 @@ func TestRunStartStop(t *testing.T) {
 	fb := newFakeBackend()
 	out := &safeBuf{}
 	addrCh := make(chan net.Addr, 1)
-	conn := make(chan struct{}, 2)
 	d := deps{sp: fb,
-		dial:      dialerWith(&net.UDPAddr{IP: net.ParseIP("10.1.2.3")}, nil),
-		connected: conn,
-		ready:     func(a net.Addr) { addrCh <- a }}
+		dial:  dialerWith(&net.UDPAddr{IP: net.ParseIP("10.1.2.3")}, nil),
+		ready: func(a net.Addr) { addrCh <- a }}
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 1)
 	go func() { errCh <- runWith(ctx, []string{"-ip", "127.0.0.1", "--port", "0"}, out, d) }()
@@ -127,19 +122,6 @@ func TestRunStartStop(t *testing.T) {
 		t.Fatalf("status: %d %s", resp.StatusCode, body)
 	}
 	<-fb.ran
-	if strings.Contains(out.String(), "CONNECTED") {
-		t.Fatal("URL reminder shown before the speakers connected")
-	}
-	conn <- struct{}{}
-	conn <- struct{}{} // a second connection must not repeat it
-	deadline := time.Now().Add(2 * time.Second)
-	for !strings.Contains(out.String(), "CONNECTED") && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	time.Sleep(50 * time.Millisecond)
-	if n := strings.Count(out.String(), "Z407 CONNECTED"); n != 1 {
-		t.Fatalf("reminder printed %d times, want 1", n)
-	}
 	cancel()
 	select {
 	case err := <-errCh:
@@ -155,7 +137,7 @@ func TestRunStartStop(t *testing.T) {
 		t.Fatal("backend Run not finished")
 	}
 	s := out.String()
-	for _, w := range []string{"REMOTE CONTROL AVAILABLE", "Z407 CONNECTED", "Goodbye"} {
+	for _, w := range []string{"REMOTE CONTROL AVAILABLE", "Goodbye"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("output missing %q", w)
 		}
@@ -184,12 +166,6 @@ func TestRunPortInUse(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected listen error")
 	}
-}
-
-func TestRemindOnceStopsOnCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	remindOnce(ctx, io.Discard, nil, nil, 1) // nil channel: must return on ctx
 }
 
 type stuckBackend struct{ *fakeBackend }

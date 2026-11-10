@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 	"github.com/mp3cko/z407-remote-go/internal/protocol"
 )
 
@@ -40,9 +41,6 @@ type Dialer interface {
 	Dial(ctx context.Context, h Handler) (Link, error)
 }
 
-// WithOnConnect registers a callback run after every successful connection.
-func WithOnConnect(f func()) Option { return func(m *Manager) { m.onConnect = f } }
-
 // Option configures a Manager.
 type Option func(*Manager)
 
@@ -64,8 +62,8 @@ func WithHeartbeat(d time.Duration) Option {
 	}
 }
 
-// WithLogger sets a printf-style logger. By default nothing is logged.
-func WithLogger(f func(format string, args ...any)) Option {
+// WithLogger sets a leveled printf-style logger. By default nothing is logged.
+func WithLogger(f func(level logx.Level, format string, args ...any)) Option {
 	return func(m *Manager) { m.log = f }
 }
 
@@ -75,8 +73,7 @@ type Manager struct {
 	dialer    Dialer
 	retry     time.Duration
 	heartbeat time.Duration
-	log       func(format string, args ...any)
-	onConnect func()
+	log       func(level logx.Level, format string, args ...any)
 	lastFail  string
 
 	wake chan struct{} // signalled when the current connection is lost
@@ -114,12 +111,12 @@ func (m *Manager) logFail(format string, args ...any) {
 		return
 	}
 	m.lastFail = msg
-	m.logf("%s (retrying every %s, repeats hidden)", msg, m.retry)
+	m.logf(logx.Error, "%s (retrying every %s, repeats hidden)", msg, m.retry)
 }
 
-func (m *Manager) logf(format string, args ...any) {
+func (m *Manager) logf(level logx.Level, format string, args ...any) {
 	if m.log != nil {
-		m.log(format, args...)
+		m.log(level, format, args...)
 	}
 }
 
@@ -214,10 +211,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 		m.reply(l)
 	}
 	m.lastFail = ""
-	m.logf("Connected to Z407")
-	if m.onConnect != nil {
-		m.onConnect()
-	}
+	m.logf(logx.Success, "Connected to Z407")
 	return true
 }
 
