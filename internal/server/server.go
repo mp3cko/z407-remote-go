@@ -180,15 +180,29 @@ func (s *srv) savePeers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// shutdownLinger bounds the wait for the caller of POST /api/shutdown to
+// take the answer before the app goes down.
+const shutdownLinger = time.Second
+
 // shutdownApp lets another instance take the speakers over: it answers, then
 // stops the app, which releases the Bluetooth link.
-func (s *srv) shutdownApp(w http.ResponseWriter, _ *http.Request) {
+func (s *srv) shutdownApp(w http.ResponseWriter, r *http.Request) {
 	if s.shutdown == nil {
 		writeJSON(w, http.StatusNotImplemented, map[string]any{"success": false, "error": "Shutdown is not available"})
 		return
 	}
+	// The caller must have the answer before the server starts closing
+	// connections: on Windows a connection closed during shutdown can be
+	// reset, and the answer is lost with it. "Connection: close" makes the
+	// caller hang up once it has read the answer, which ends this request's
+	// context; only then does the shutdown begin.
+	w.Header().Set("Connection", "close")
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 	_ = http.NewResponseController(w).Flush()
+	select {
+	case <-r.Context().Done():
+	case <-time.After(shutdownLinger):
+	}
 	go s.shutdown()
 }
 
