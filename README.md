@@ -34,7 +34,7 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address the app prints (for example `http://192.168.1.50:5000`) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers.
+While the window is open, other devices on the same network can use the remote too: open the address the app prints (for example `http://192.168.1.50:5000`) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, and can also close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
 
 ### The window
 
@@ -51,6 +51,17 @@ By default the app listens on all interfaces on port 5000. To change that:
 z407 --ip 127.0.0.1 --port 8080
 ```
 
+### Several computers
+
+The speakers accept one Bluetooth LE controller at a time, so a second copy of this app cannot connect while the first one holds the link. To let the copy you started last win, tell each copy where the others run:
+
+- On the remote's page, open "Other computers" below the remote, enter the other machines as `host` or `host:port` separated by commas (for example `living-room-pc, 192.168.1.20:5001`; the port defaults to 5000) and press Save. The list is stored in `z407/config.json` in your configuration directory (`%AppData%` on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS) and takes effect at once.
+- Or start the app with `--peers living-room-pc,192.168.1.20:5001`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the page during that run.
+
+When a copy has searched for the speakers for 10 seconds without connecting, it sends `POST /api/shutdown` to every computer on its list. A copy that receives this closes itself (window included) and releases the speakers; the searching copy then connects on one of its next attempts. Each computer is asked at most once per run and a copy never asks itself, so two copies that list each other cannot keep shutting each other down. Computers that are off or not running the app are skipped.
+
+Like the rest of the API, `/api/shutdown` is not authenticated: anyone on your network can close the app with it. They cannot do more than that.
+
 ### On your phone
 
 Open the address in the phone's browser and choose "Add to Home screen" from the browser menu. You get an icon that opens the remote without the browser's address bar. It works while the app is running on the computer. (A full offline-capable install needs HTTPS, which a LAN address does not have; the shortcut is all that is needed here.)
@@ -61,7 +72,7 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 
 ## Troubleshooting
 
-- The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them.
+- The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-computers) if another computer runs this app.
 - If your phone cannot load the page, check the firewall on the computer, and if you use a VPN enable "Allow LAN access" or split tunneling.
 - The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open the printed address in any browser.
 - On Windows, when started from a terminal, clicking inside the terminal can pause the program; press Enter to resume it.
