@@ -21,7 +21,7 @@ PORTABLE := linux-amd64 linux-arm64 windows-amd64
 # macOS needs cgo (CoreBluetooth), so it must be built on a Mac.
 MACOS    := darwin-arm64 darwin-amd64
 
-.PHONY: all build cross $(PORTABLE) $(MACOS) test vet fmt clean help
+.PHONY: all build cross $(PORTABLE) $(MACOS) android test vet fmt clean help
 
 all: build
 
@@ -30,6 +30,8 @@ help:
 	@echo "make cross      Linux (amd64, arm64) + Windows  (+ macOS when run on a Mac)"
 	@echo "make <target>   one of: $(PORTABLE) $(MACOS)"
 	@echo "make windows-amd64 WINDOWS_CONSOLE=1   Windows build that keeps a console window"
+	@echo "make android    Android app: unit tests + debug APK      -> dist/z407_android_debug.apk"
+	@echo "                (needs JDK 17 and the Android SDK, see README)"
 	@echo "make test | vet | fmt | clean"
 
 build:
@@ -52,6 +54,11 @@ endif
 	CGO_ENABLED=1 GOOS=darwin GOARCH=$(word 2,$(subst -, ,$@)) \
 		$(BUILD) -ldflags="$(call ldflags,darwin)" -o dist/z407_$(subst -,_,$@) $(PKG)
 
+android:
+	cd android && ./gradlew --no-daemon test assembleDebug
+	mkdir -p dist
+	cp android/app/build/outputs/apk/debug/app-debug.apk dist/z407_android_debug.apk
+
 test:
 	$(GO) test -race -cover ./...
 
@@ -62,4 +69,4 @@ fmt:
 	$(GO) fmt ./...
 
 clean:
-	rm -rf dist
+	rm -rf dist android/build android/app/build
