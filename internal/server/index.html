@@ -208,6 +208,19 @@ details { font-size: .85rem; padding: 0 8px; }
 details summary { cursor: pointer; padding: 4px 0; }
 details ul { margin: 8px 0 0; padding-left: 18px; }
 details li { margin-bottom: 6px; }
+details p { margin: 8px 0; }
+#peersForm { display: flex; gap: 10px; align-items: center; margin: 10px 0 8px; }
+#peersInput {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
+  font: inherit; color: inherit; background: rgba(128, 128, 128, .12);
+  border: 1px solid rgba(128, 128, 128, .45);
+  -webkit-user-select: text; user-select: text;
+}
+#peersInput:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+#peersInput:disabled { opacity: .6; }
+#peersForm button { min-height: 44px; padding: 0 18px; }
+#peersMsg { min-height: 1.4em; }
+#peersMsg.err { color: var(--red); }
 footer { text-align: center; font-size: .72rem; padding: 0 8px; }
 footer a { color: inherit; }
 
@@ -320,6 +333,17 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     </ul>
   </details>
 
+  <details id="peers">
+    <summary>Other computers</summary>
+    <p>The speakers accept one controller at a time. When this app cannot find them, it asks the computers listed here to close their copy of the app and release the speakers.</p>
+    <form id="peersForm">
+      <input id="peersInput" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
+             placeholder="living-room-pc, 192.168.1.20:5000" aria-label="Addresses of other computers, separated by commas">
+      <button class="light" type="submit">Save</button>
+    </form>
+    <p id="peersMsg" role="status" aria-live="polite"></p>
+  </details>
+
   <footer>
     Protocol research by <a href="https://github.com/freundTech/logi-z407-reverse-engineering" target="_blank" rel="noopener">freundTech</a>.
     Unofficial; not affiliated with Logitech.
@@ -424,7 +448,43 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     }
   });
 
+  // "Other computers" editor. The list is sent in the query string, not in
+  // a request body, so the same page works inside the Android app.
+  const peersInput = $('peersInput'), peersMsg = $('peersMsg');
+
+  function peersNote(msg, isErr) {
+    peersMsg.textContent = msg;
+    peersMsg.classList.toggle('err', !!isErr);
+  }
+
+  async function loadPeers() {
+    try {
+      const data = await (await fetch('/api/peers')).json();
+      peersInput.value = (data.peers || []).join(', ');
+      peersInput.disabled = !!data.fixed;
+      $('peersForm').querySelector('button').disabled = !!data.fixed;
+      peersNote(data.fixed ? 'Set with --peers for this run. The saved list is unchanged.' : '');
+    } catch {
+      peersNote('Cannot load the list', true);
+    }
+  }
+
+  $('peersForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/peers?list=' + encodeURIComponent(peersInput.value), { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        peersInput.value = data.peers.join(', ');
+        peersNote(data.peers.length ? 'Saved.' : 'Saved. The list is empty.');
+      } else peersNote(data.error || 'Could not save', true);
+    } catch {
+      peersNote('Cannot reach the app', true);
+    }
+  });
+
   refresh();
+  loadPeers();
   setInterval(refresh, 5000);
 
   // Held open so the app knows this page exists: when the remote runs in a

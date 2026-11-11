@@ -4,6 +4,7 @@ package server
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-go/internal/peers"
 )
 
 //go:embed index.html
@@ -52,11 +54,20 @@ func WithLogger(l *logx.Logger) Option { return func(s *srv) { s.log = l } }
 // WithPresence reports the pages open on this machine to p.
 func WithPresence(p *Presence) Option { return func(s *srv) { s.presence = p } }
 
+// WithPeers sets the store behind the "Other computers" editor (default: a
+// list that lives in memory only).
+func WithPeers(p *peers.Store) Option { return func(s *srv) { s.peers = p } }
+
+// WithShutdown enables POST /api/shutdown: fn must make the app stop.
+func WithShutdown(fn func()) Option { return func(s *srv) { s.shutdown = fn } }
+
 type srv struct {
 	sp       Speaker
 	log      *logx.Logger
 	cmds     map[string]func() error
 	presence *Presence
+	peers    *peers.Store
+	shutdown func()
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
@@ -64,6 +75,9 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	s := &srv{sp: sp, log: logx.New(os.Stderr)}
 	for _, o := range opts {
 		o(s)
+	}
+	if s.peers == nil {
+		s.peers, _ = peers.Open("", peers.DefaultPort)
 	}
 	s.cmds = map[string]func() error{
 		"vol_up":          sp.VolumeUp,
@@ -85,6 +99,9 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	mux.HandleFunc("GET /{file}", s.staticFile)
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/status", s.status)
+	mux.HandleFunc("GET /api/peers", s.listPeers)
+	mux.HandleFunc("POST /api/peers", s.savePeers)
+	mux.HandleFunc("POST /api/shutdown", s.shutdownApp)
 	mux.HandleFunc("POST /api/{command}", s.command)
 	return s.accessLog(mux)
 }
@@ -141,6 +158,38 @@ func (s *srv) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (s *srv) listPeers(w http.ResponseWriter, _ *http.Request) {
+	list, fixed := s.peers.List()
+	writeJSON(w, http.StatusOK, map[string]any{"peers": list, "fixed": fixed})
+}
+
+// savePeers stores the comma-separated ?list= parameter. The list travels in
+// the query string because the Android app, which shows this same page,
+// cannot read the body of a request it intercepts.
+func (s *srv) savePeers(w http.ResponseWriter, r *http.Request) {
+	list, err := s.peers.Save(r.URL.Query().Get("list"))
+	switch {
+	case errors.Is(err, peers.ErrFixed):
+		writeJSON(w, http.StatusConflict, map[string]any{"success": false, "error": err.Error()})
+	case err != nil:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"success": false, "error": err.Error()})
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"success": true, "peers": list})
+	}
+}
+
+// shutdownApp lets another instance take the speakers over: it answers, then
+// stops the app, which releases the Bluetooth link.
+func (s *srv) shutdownApp(w http.ResponseWriter, _ *http.Request) {
+	if s.shutdown == nil {
+		writeJSON(w, http.StatusNotImplemented, map[string]any{"success": false, "error": "Shutdown is not available"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+	_ = http.NewResponseController(w).Flush()
+	go s.shutdown()
 }
 
 type statusWriter struct {
