@@ -134,11 +134,21 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
   display: grid; gap: 12px; align-content: center;
 }
 .readout { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.readout > :first-child { flex: none; }
 .readout small { display: block; font-size: .62rem; letter-spacing: .18em; opacity: .65; margin-bottom: 4px; }
 #volText {
   font-size: 2.6rem; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums;
   text-shadow: 0 0 12px color-mix(in srgb, var(--lcd-ink) 70%, transparent);
 }
+.status { align-self: stretch; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; gap: 6px; }
+#msg {
+  font-size: .7rem; line-height: 1.3; letter-spacing: .14em; text-transform: uppercase; text-align: right;
+  min-height: 1.3em; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  text-shadow: 0 0 8px currentColor; opacity: 0; transition: opacity .2s;
+}
+#msg.show { opacity: 1; }
+#msg.err { color: var(--red); }
 #connText { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; text-align: right; color: var(--red); text-shadow: 0 0 8px currentColor; }
 #conn.on #connText { color: var(--green); }
 #volBar { display: flex; gap: 3px; height: 18px; }
@@ -224,17 +234,6 @@ details p { margin: 8px 0; }
 footer { text-align: center; font-size: .72rem; padding: 0 8px; }
 footer a { color: inherit; }
 
-#toast {
-  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 5;
-  transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
-  background: #1c1b19; color: #f1ede4; border: 1px solid #3a3733;
-  padding: 10px 16px; border-radius: 12px; font-size: .9rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
-  max-width: calc(100% - 32px); transition: opacity .2s, transform .2s;
-}
-#toast.show { opacity: 1; transform: translate(-50%, 0); }
-#toast.err { border-color: var(--red); color: var(--red); }
-
 dialog {
   color: #33302b; border: 0; border-radius: 24px; padding: 22px;
   width: min(340px, calc(100% - 32px));
@@ -279,7 +278,10 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     <section class="display" id="conn" aria-label="Status">
       <div class="readout">
         <div><small>VOLUME · EST.</small><span id="volText">--</span></div>
-        <span class="lamp"><span id="connText">Connecting…</span><span class="led"></span></span>
+        <div class="status">
+          <span id="msg" role="status" aria-live="polite"></span>
+          <span class="lamp"><span id="connText">Connecting…</span><span class="led"></span></span>
+        </div>
       </div>
       <div id="volBar" role="img" aria-label="Estimated volume"></div>
     </section>
@@ -350,7 +352,6 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
   </footer>
 </main>
 
-<div id="toast" role="status" aria-live="polite"></div>
 <dialog id="confirm">
   <p id="confirmText"></p>
   <form method="dialog">
@@ -364,9 +365,9 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
   const $ = (id) => document.getElementById(id);
   const conn = $('conn'), connText = $('connText');
   const volBar = $('volBar'), volText = $('volText'), ir = $('ir');
-  const toast = $('toast'), dlg = $('confirm');
+  const msgEl = $('msg'), dlg = $('confirm');
   const SEGMENTS = 24;
-  let toastTimer, irTimer;
+  let msgTimer, irTimer;
 
   for (let i = 0; i < SEGMENTS; i++) {
     const seg = document.createElement('i');
@@ -382,11 +383,11 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
   }
 
   function say(msg, isErr) {
-    toast.textContent = msg;
-    toast.classList.toggle('err', !!isErr);
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    msgEl.textContent = msg;
+    msgEl.classList.toggle('err', !!isErr);
+    msgEl.classList.add('show');
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(() => msgEl.classList.remove('show'), 2200);
   }
 
   // Signal lamp: green while the app answers, red once it stops.
