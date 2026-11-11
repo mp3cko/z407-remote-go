@@ -6,9 +6,9 @@ HOST_OS := $(shell $(GO) env GOOS)
 EXE     := $(shell $(GO) env GOEXE)
 PKG     := ./cmd/z407
 
-# Windows binaries are GUI programs: double-clicking one opens the remote's
-# window and no console. Started from a terminal they still print there.
-# Build with WINDOWS_CONSOLE=1 for a plain console program.
+# Windows binaries are GUI programs: starting one opens the remote's window
+# and no console, and the log goes to a file. Build with WINDOWS_CONSOLE=1
+# for a plain console program that logs to the terminal.
 ifndef WINDOWS_CONSOLE
 WINGUI  := -H=windowsgui
 endif
@@ -29,7 +29,7 @@ help:
 	@echo "make build      build for this machine          -> dist/z407$(EXE)"
 	@echo "make cross      Linux (amd64, arm64) + Windows  (+ macOS when run on a Mac)"
 	@echo "make <target>   one of: $(PORTABLE) $(MACOS)"
-	@echo "make windows-amd64 WINDOWS_CONSOLE=1   Windows build that keeps a console window"
+	@echo "make windows-amd64 WINDOWS_CONSOLE=1   Windows build that logs to the terminal"
 	@echo "make android    Android app: unit tests + debug APK      -> dist/z407_android_debug.apk"
 	@echo "                (needs JDK 17 and the Android SDK, see README)"
 	@echo "make test | vet | fmt | clean"

@@ -11,16 +11,20 @@ import (
 )
 
 // The release binary is linked with -H=windowsgui so that double-clicking it
-// opens no console window. Such a process starts without standard output.
-// setupOutput gives it one: the console of the terminal it was started from,
-// or else a log file. A console build, or one whose output is redirected,
-// already has working handles and is left alone.
+// opens no console window. Such a process starts without standard output,
+// and setupOutput points it at a log file. A console build, or one whose
+// output is redirected or piped, already has working handles and is left
+// alone.
+//
+// The console of the terminal the program was started from is deliberately
+// not used: the shell does not wait for a GUI program, so the output would
+// land on top of its next prompt, and under WSL that console is the Windows
+// terminal itself, behind the back of tmux and with line feeds that do not
+// return the carriage.
 
 // windowless is true when the output goes to the log file: nobody is
 // watching, so a startup failure has to be shown in a message box.
 var windowless bool
-
-const attachParentProcess = ^uint32(0) // ATTACH_PARENT_PROCESS
 
 func handleUsable(std uint32) bool {
 	h, err := windows.GetStdHandle(std)
@@ -34,14 +38,6 @@ func handleUsable(std uint32) bool {
 func setupOutput() {
 	if handleUsable(windows.STD_OUTPUT_HANDLE) || handleUsable(windows.STD_ERROR_HANDLE) {
 		return
-	}
-	attach := windows.NewLazySystemDLL("kernel32.dll").NewProc("AttachConsole")
-	if r, _, _ := attach.Call(uintptr(attachParentProcess)); r != 0 {
-		if con, err := os.OpenFile("CONOUT$", os.O_RDWR, 0); err == nil {
-			useOutput(con)
-			fmt.Fprintln(con) // the shell has already printed its next prompt
-			return
-		}
 	}
 	windowless = true
 	if f, err := openLogFile(logFilePath(os.Getenv("LOCALAPPDATA"), os.TempDir())); err == nil {
