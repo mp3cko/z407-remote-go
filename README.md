@@ -29,7 +29,7 @@ make test
 
 - **Linux:** BlueZ is required.
 - **macOS:** build natively on a Mac (cgo and the Xcode command line tools are required; it cannot be cross-compiled). Allow Bluetooth for your terminal when prompted.
-- **Windows:** Windows 10 or 11 with a Bluetooth LE adapter. Make sure the speakers are already paired in Windows settings.
+- **Windows:** Windows 10 or 11 with a Bluetooth LE adapter.
 
 ## Usage
 
