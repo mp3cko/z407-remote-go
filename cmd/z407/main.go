@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mp3cko/z407-remote-go/internal/appwin"
 	"github.com/mp3cko/z407-remote-go/internal/ble"
 	"github.com/mp3cko/z407-remote-go/internal/logx"
 	"github.com/mp3cko/z407-remote-go/internal/server"
@@ -38,17 +39,26 @@ type deps struct {
 	sp     backend
 	dial   func(network, address string) (net.Conn, error)
 	ifaces func() []ifaceAddrs // nil = system interfaces
-	ready  func(addr net.Addr) // optional; called once listening
+	ready  func(addr net.Addr) // optional; called once serving, after the window was opened
 	// waitLimit bounds the wait for background goroutines at shutdown
 	// (default shutdownWait).
 	waitLimit time.Duration
+	// win opens the remote in a window on this machine; nil = never.
+	win windowOpener
+	log *logx.Logger // nil = colored output on stderr
+	// earlyExit and grace override the window timing (defaults: earlyExit,
+	// server.DefaultGrace).
+	earlyExit time.Duration
+	grace     time.Duration
 }
 
 func main() {
+	setupOutput()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:], os.Stdout); err != nil {
 		failExit(err, os.Stdout, os.Stdin, runtime.GOOS, isTerminal(os.Stdin))
+		alertFailure(err)
 		os.Exit(1)
 	}
 }
@@ -68,13 +78,16 @@ func isTerminal(f *os.File) bool {
 	return err == nil && fi.Mode()&os.ModeCharDevice != 0
 }
 
-// run parses args and serves until ctx is cancelled.
+// run parses args and serves until ctx is cancelled or the window showing
+// the remote is closed.
 func run(ctx context.Context, args []string, stdout io.Writer) error {
 	lg := logx.New(os.Stderr)
 	return runWith(ctx, args, stdout, deps{
 		sp:     speaker.NewManager(ble.NewDialer(), speaker.WithLogger(lg.Logf)),
 		dial:   net.Dial,
 		ifaces: systemIfaces,
+		win:    appwin.Real(runtime.GOOS),
+		log:    lg,
 	})
 }
 
@@ -83,6 +96,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	fs.SetOutput(stdout)
 	ip := fs.String("ip", "0.0.0.0", "Host IP to bind to")
 	port := fs.Int("port", 5000, "Port to bind to")
+	noWindow := fs.Bool("no-window", false, "Do not open the remote in a window; run until interrupted (Ctrl+C)")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -96,23 +110,44 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	}
 	actualPort := ln.Addr().(*net.TCPAddr).Port
 	fmt.Fprint(stdout, banner(d.addrs(), actualPort, *ip))
-	if d.ready != nil {
-		d.ready(ln.Addr())
-	}
 
-	srv := &http.Server{
-		Handler:           server.New(d.sp),
-		ReadHeaderTimeout: 10 * time.Second,
+	lg := d.log
+	if lg == nil {
+		lg = logx.New(os.Stderr)
 	}
-
 	ctx, cancelBg := context.WithCancel(ctx)
 	defer cancelBg()
+
+	presence := server.NewPresence(d.grace, func() {
+		lg.Infof("The remote's page was closed, stopping")
+		cancelBg()
+	})
+	srv := &http.Server{
+		Handler:           server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence)),
+		ReadHeaderTimeout: 10 * time.Second,
+		// Long-lived requests (the pages' event streams) end with the app.
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); d.sp.Run(ctx) }()
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
+
+	closeWindow := func() {}
+	if !*noWindow && d.win != nil {
+		early := d.earlyExit
+		if early <= 0 {
+			early = earlyExit
+		}
+		w := window{win: d.win, log: lg, presence: presence, quit: cancelBg, early: early}
+		closeWindow = w.open(ctx, localURL(*ip, actualPort), actualPort)
+	}
+	if d.ready != nil {
+		d.ready(ln.Addr())
+	}
 
 	var result error
 	select {
@@ -129,6 +164,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		result = nil
 	}
 	cancelBg() // also needed when Serve failed while ctx is still live
+	closeWindow()
 	limit := d.waitLimit
 	if limit <= 0 {
 		limit = shutdownWait

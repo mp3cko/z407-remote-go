@@ -52,6 +52,10 @@ func Enabled(f *os.File) bool {
 
 var stdoutColor = Enabled(os.Stdout)
 
+// UseStdout re-evaluates the banner colors for f, for programs that replace
+// standard output after start.
+func UseStdout(f *os.File) { stdoutColor = Enabled(f) }
+
 func paint(on bool, c, s string) string {
 	if !on {
 		return s
