@@ -40,15 +40,15 @@ jobs:
           CGO_ENABLED: ${{ matrix.cgo }}
         run: |
           name="z407_${GITHUB_REF_NAME}_${GOOS}_${GOARCH}"
-          bin=z407
-          ldflags="-s -w"
-          if [ "$GOOS" = windows ]; then
-            bin=z407.exe
-            # GUI program: double-clicking it opens the remote's window, no console.
-            ldflags="$ldflags -H=windowsgui"
-          fi
           mkdir -p "dist/$name"
-          go build -trimpath -ldflags="$ldflags" -o "dist/$name/$bin" ./cmd/z407
+          if [ "$GOOS" = windows ]; then
+            # z407.exe is a GUI program: it opens the remote's window and no
+            # console. z407_console.exe logs to the terminal it runs in.
+            go build -trimpath -ldflags="-s -w -H=windowsgui" -o "dist/$name/z407.exe" ./cmd/z407
+            go build -trimpath -ldflags="-s -w" -o "dist/$name/z407_console.exe" ./cmd/z407
+          else
+            go build -trimpath -ldflags="-s -w" -o "dist/$name/z407" ./cmd/z407
+          fi
           cp LICENSE README.md "dist/$name/"
           cd dist
           if [ "$GOOS" = windows ]; then

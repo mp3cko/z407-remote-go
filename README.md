@@ -12,18 +12,18 @@ A small remote for the Logitech Z407 speakers. It runs on a computer with Blueto
 
 ## Install
 
-Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-go/releases), extract it and run `z407` (`z407.exe` on Windows).
+Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-go/releases), extract it and run `z407` (`z407.exe` on Windows; the archive also holds `z407_console.exe`, see [Windows](#windows)).
 
 Or build it yourself (Go 1.26.1 or newer):
 
 ```bash
 make build          # dist/z407 for the current OS
 make cross          # Linux (amd64, arm64) and Windows from any OS, plus macOS when run on a Mac
-make windows-amd64  # a single target, e.g. dist/z407_windows_amd64.exe
+make windows-amd64  # a single target: dist/z407_windows_amd64.exe and ..._console.exe
 make test
 ```
 
-`make help` lists all targets. Windows binaries are built as GUI programs (`-H=windowsgui`), so no console window opens and the log goes to a file; `make windows-amd64 WINDOWS_CONSOLE=1` builds a console program that logs to the terminal instead. The macOS targets (`darwin-arm64`, `darwin-amd64`) only work on a Mac, because the Bluetooth backend needs cgo.
+`make help` lists all targets. Windows builds produce two programs: a GUI program (`-H=windowsgui`) that opens no console window and logs to a file, and a `_console.exe` that logs to the terminal it runs in. The macOS targets (`darwin-arm64`, `darwin-amd64`) only work on a Mac, because the Bluetooth backend needs cgo.
 
 ### Platform notes
 
@@ -72,7 +72,9 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 
 `z407.exe` is a GUI program: it opens no console window and by default prints nothing in the terminal it was started from. It writes its log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box. The address for other devices is shown below the remote, under "Web address".
 
-To see the log live, pipe the output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL), or build a console program with `make windows-amd64 WINDOWS_CONSOLE=1`. `z407.exe --log terminal` also writes to the terminal it was started from, with two limits that come from being a GUI program: the shell does not wait for it, so the output appears over the next prompt, and under WSL the output is garbled (use the pipe there).
+`z407_console.exe` is the same app as a console program: started from a terminal (PowerShell, cmd, WSL) it logs there, the shell waits for it, and Ctrl+C stops it. Double-clicking it opens a console window next to the remote.
+
+To see the log of `z407.exe` live, pipe its output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL). `z407.exe --log terminal` also writes to the terminal it was started from, with two limits that come from being a GUI program: the shell does not wait for it, so the output appears over the next prompt, and under WSL the output is garbled (use the pipe there).
 
 ## Android app
 
@@ -124,7 +126,7 @@ The Bluetooth side cannot be tested automatically. With a phone and the speakers
 - The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-computers) if another computer runs this app.
 - If your phone cannot load the page, check the firewall on the computer, and if you use a VPN enable "Allow LAN access" or split tunneling.
 - The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open `http://127.0.0.1:5000` in any browser.
-- On Windows, with a console build, clicking inside the terminal can pause the program; press Enter to resume it.
+- On Windows, with `z407_console.exe`, clicking inside the terminal can pause the program; press Enter to resume it.
 - If connecting keeps failing, try in order: power-cycle the speakers, toggle Bluetooth on the computer, unpair and re-pair the speakers, restart the computer.
 
 ## Acknowledgements
