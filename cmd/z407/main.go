@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,11 +23,15 @@ import (
 	"github.com/mp3cko/z407-remote-go/internal/appwin"
 	"github.com/mp3cko/z407-remote-go/internal/ble"
 	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-go/internal/peers"
 	"github.com/mp3cko/z407-remote-go/internal/server"
 	"github.com/mp3cko/z407-remote-go/internal/speaker"
 )
 
-const shutdownWait = 5 * time.Second
+const (
+	shutdownWait = 5 * time.Second
+	defaultPort  = peers.DefaultPort
+)
 
 // backend is a speaker connection manager that can be run in the background.
 type backend interface {
@@ -50,6 +55,15 @@ type deps struct {
 	// server.DefaultGrace).
 	earlyExit time.Duration
 	grace     time.Duration
+	// configDir is the user's configuration directory, where the peer list
+	// is saved; nil = keep the list in memory only.
+	configDir func() (string, error)
+	// takeover is the template for asking peers to release the speakers;
+	// Peers and Connected are filled in. The zero value uses the defaults.
+	takeover      peers.Takeover
+	takeoverEvery time.Duration                  // 0 = peers.CheckInterval
+	localIPs      func() []net.IP                // nil = none
+	lookup        func(string) ([]net.IP, error) // nil = names never resolve
 }
 
 func main() {
@@ -88,6 +102,10 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		ifaces: systemIfaces,
 		win:    appwin.Real(runtime.GOOS),
 		log:    lg,
+
+		configDir: os.UserConfigDir,
+		localIPs:  systemIPs,
+		lookup:    lookupHost,
 	})
 }
 
@@ -95,13 +113,28 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	fs := flag.NewFlagSet("z407", flag.ContinueOnError)
 	fs.SetOutput(stdout)
 	ip := fs.String("ip", "0.0.0.0", "Host IP to bind to")
-	port := fs.Int("port", 5000, "Port to bind to")
+	port := fs.Int("port", defaultPort, "Port to bind to")
 	noWindow := fs.Bool("no-window", false, "Do not open the remote in a window; run until interrupted (Ctrl+C)")
+	peerList := fs.String("peers", "", "Other computers running this app, as host or host:port, comma-separated.\n"+
+		"Replaces the list saved from the remote's page for this run")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	lg := d.log
+	if lg == nil {
+		lg = logx.New(os.Stderr)
+	}
+
+	store := d.openPeers(lg)
+	peersGiven := false
+	fs.Visit(func(f *flag.Flag) { peersGiven = peersGiven || f.Name == "peers" })
+	if peersGiven {
+		if err := store.Fix(*peerList); err != nil {
+			return fmt.Errorf("--peers: %w", err)
+		}
 	}
 
 	ln, err := net.Listen("tcp", net.JoinHostPort(*ip, strconv.Itoa(*port)))
@@ -111,10 +144,6 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	actualPort := ln.Addr().(*net.TCPAddr).Port
 	fmt.Fprint(stdout, banner(d.addrs(), actualPort, *ip))
 
-	lg := d.log
-	if lg == nil {
-		lg = logx.New(os.Stderr)
-	}
 	ctx, cancelBg := context.WithCancel(ctx)
 	defer cancelBg()
 
@@ -122,8 +151,13 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		lg.Infof("The remote's page was closed, stopping")
 		cancelBg()
 	})
+	handler := server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence), server.WithPeers(store),
+		server.WithShutdown(func() {
+			lg.Infof("Shutdown requested over the network (another computer takes over the speakers), stopping")
+			cancelBg()
+		}))
 	srv := &http.Server{
-		Handler:           server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence)),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		// Long-lived requests (the pages' event streams) end with the app.
 		BaseContext: func(net.Listener) context.Context { return ctx },
@@ -132,6 +166,18 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); d.sp.Run(ctx) }()
+
+	tk := d.takeover
+	tk.Peers = func() []string { list, _ := store.List(); return list }
+	tk.Connected = func() bool { connected, _ := d.sp.Status(); return connected }
+	if tk.IsSelf == nil {
+		tk.IsSelf = peers.SelfCheck(actualPort, d.ips, d.resolve)
+	}
+	if tk.Log == nil {
+		tk.Log = lg.Logf
+	}
+	wg.Add(1)
+	go func() { defer wg.Done(); tk.Run(ctx, d.takeoverEvery) }()
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
@@ -178,6 +224,70 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	}
 	fmt.Fprint(stdout, goodbye())
 	return result
+}
+
+// openPeers opens the saved peer list. Problems are logged and leave the
+// app running with an empty list.
+func (d deps) openPeers(lg *logx.Logger) *peers.Store {
+	path := ""
+	if d.configDir != nil {
+		dir, err := d.configDir()
+		if err != nil {
+			lg.Errorf("No configuration directory (%v): the list of other computers will not be saved", err)
+		} else {
+			path = filepath.Join(dir, "z407", "config.json")
+		}
+	}
+	store, err := peers.Open(path, defaultPort)
+	if err != nil {
+		lg.Errorf("Could not read the list of other computers: %v", err)
+	}
+	return store
+}
+
+func (d deps) ips() []net.IP {
+	if d.localIPs == nil {
+		return nil
+	}
+	return d.localIPs()
+}
+
+func (d deps) resolve(host string) ([]net.IP, error) {
+	if d.lookup == nil {
+		return nil, errors.New("no resolver")
+	}
+	return d.lookup(host)
+}
+
+// systemIPs returns the addresses of this machine's network interfaces.
+func systemIPs() []net.IP {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var ips []net.IP
+	for _, a := range addrs {
+		if n, ok := a.(*net.IPNet); ok {
+			ips = append(ips, n.IP)
+		}
+	}
+	return ips
+}
+
+// lookupHost resolves a peer name, without letting a slow resolver stall
+// the takeover for long.
+func lookupHost(host string) ([]net.IP, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), peers.PeerTimeout)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]net.IP, len(addrs))
+	for i, a := range addrs {
+		ips[i] = a.IP
+	}
+	return ips, nil
 }
 
 // getIP returns the local IP used for outbound traffic. UDP "connect" sends
