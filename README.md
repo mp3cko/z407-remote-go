@@ -12,7 +12,7 @@ A small remote for the Logitech Z407 speakers. It runs on a computer with Blueto
 
 ## Install
 
-Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-go/releases), extract it and run `z407` (`z407.exe` on Windows; the archive also holds `z407_console.exe`, see [Windows](#windows)).
+Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-go/releases), extract it and run `z407` (`z407.exe` on Windows; the archive also holds `z407_console.exe`, see [Windows](#windows)). On macOS the archive holds the app `Z407 Remote.app`, see [macOS](#macos); on Linux `z407 --install` adds the remote to the applications menu, see [Linux](#linux).
 
 Or build it yourself (Go 1.26.1 or newer):
 
@@ -75,6 +75,23 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 `z407_console.exe` is the same app as a console program: started from a terminal (PowerShell, cmd, WSL) it logs there, the shell waits for it, and Ctrl+C stops it. Double-clicking it opens a console window next to the remote.
 
 To see the log of `z407.exe` live, pipe its output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL). `z407.exe --log terminal` also writes to the terminal it was started from, with two limits that come from being a GUI program: the shell does not wait for it, so the output appears over the next prompt, and under WSL the output is garbled (use the pipe there).
+
+### Linux
+
+A Linux program file cannot carry an icon, so the icon comes with a menu entry:
+
+```bash
+./z407 --install     # adds "Z407 Remote", with its icon, to the applications menu
+./z407 --uninstall   # removes it again
+```
+
+The entry and the icon are written to `~/.local/share` (no root needed) and start the program from where it is now; run `--install` again after moving it. Started from the menu the app logs to `~/.cache/z407/z407.log`.
+
+### macOS
+
+The release archive holds `Z407 Remote.app`: move it to Applications and open it. The app is not notarized by Apple, so the first time right-click it and choose Open (or allow it under System Settings > Privacy & Security), and allow Bluetooth when asked. It has no Dock icon; closing the remote's window quits it. It logs to `~/Library/Caches/z407/z407.log`, and a startup problem is shown in a dialog.
+
+The program itself is inside the app, for use in a terminal: `"Z407 Remote.app/Contents/MacOS/z407" --help`. `make macos-app` builds the app on a Mac.
 
 ## Android app
 

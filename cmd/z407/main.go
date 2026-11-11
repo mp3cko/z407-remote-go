@@ -130,11 +130,16 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		"Replaces the list saved from the remote's page for this run")
 	logTo := fs.String("log", "", "Where the output goes: \"terminal\" or \"file\" ("+logPath()+").\n"+
 		"Default: terminal; the Windows GUI build, which has no terminal: file")
+	install := fs.Bool("install", false, "Linux: add the remote, with its icon, to the applications menu, and exit")
+	uninstall := fs.Bool("uninstall", false, "Linux: remove the remote from the applications menu, and exit")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	if *install || *uninstall {
+		return runLauncher(stdout, *install)
 	}
 	if *logTo != "" && *logTo != logTerminal && *logTo != logFile {
 		return fmt.Errorf("--log: %q is not %q or %q", *logTo, logTerminal, logFile)

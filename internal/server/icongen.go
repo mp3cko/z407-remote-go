@@ -2,7 +2,8 @@
 
 // Command icongen draws the app icons from the same shapes as the favicon in
 // index.html (an orange tile with a white speaker): the web app icons in
-// static/ and the icon of the Windows program, cmd/z407/z407.ico. Run it
+// static/, the icon of the Windows program (cmd/z407/z407.ico) and the icon
+// of the macOS app (packaging/macos/z407.icns). Run it
 // with "go generate ./..." after changing the design; that also rebuilds
 // the Windows resource file from the new .ico (see cmd/z407/main.go).
 package main
@@ -115,7 +116,35 @@ func writeICO(name string, sizes []int) error {
 	return os.WriteFile(name, out.Bytes(), 0o644)
 }
 
+// writeICNS writes a macOS icon holding one PNG image per size.
+func writeICNS(name string) error {
+	var body bytes.Buffer
+	for _, e := range []struct {
+		kind string
+		size int
+	}{
+		{"ic11", 32}, {"ic12", 64}, {"ic07", 128}, {"ic13", 256}, // 16@2x, 32@2x, 128, 128@2x
+		{"ic08", 256}, {"ic14", 512}, {"ic09", 512}, {"ic10", 1024}, // 256, 256@2x, 512, 512@2x
+	} {
+		var b bytes.Buffer
+		if err := (&png.Encoder{CompressionLevel: png.BestCompression}).Encode(&b, draw(e.size, true)); err != nil {
+			return err
+		}
+		body.WriteString(e.kind)
+		_ = binary.Write(&body, binary.BigEndian, uint32(8+b.Len()))
+		body.Write(b.Bytes())
+	}
+	var out bytes.Buffer
+	out.WriteString("icns")
+	_ = binary.Write(&out, binary.BigEndian, uint32(8+body.Len()))
+	out.Write(body.Bytes())
+	return os.WriteFile(name, out.Bytes(), 0o644)
+}
+
 func main() {
+	if err := writeICNS("../../packaging/macos/z407.icns"); err != nil {
+		log.Fatal(err)
+	}
 	if err := writeICO("../../cmd/z407/z407.ico", []int{16, 24, 32, 48, 64, 256}); err != nil {
 		log.Fatal(err)
 	}

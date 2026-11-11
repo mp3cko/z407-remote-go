@@ -26,6 +26,12 @@ var indexHTML []byte
 //go:embed static
 var static embed.FS
 
+// Icon returns the app icon, a 512-pixel PNG.
+func Icon() []byte {
+	data, _ := static.ReadFile("static/icon-512.png")
+	return data
+}
+
 const notConnectedMsg = "Speakers not connected. Waiting for background connection..."
 
 // Speaker is the subset of speaker.Manager used by the HTTP handlers.

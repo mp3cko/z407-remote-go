@@ -19,7 +19,7 @@ PORTABLE := linux-amd64 linux-arm64 windows-amd64
 # macOS needs cgo (CoreBluetooth), so it must be built on a Mac.
 MACOS    := darwin-arm64 darwin-amd64
 
-.PHONY: all build cross $(PORTABLE) $(MACOS) android test vet fmt clean help
+.PHONY: all build cross $(PORTABLE) $(MACOS) macos-app android test vet fmt clean help
 
 all: build
 
@@ -28,6 +28,7 @@ help:
 	@echo "                (Windows: z407.exe without a console, z407_console.exe with one)"
 	@echo "make cross      Linux (amd64, arm64) + Windows  (+ macOS when run on a Mac)"
 	@echo "make <target>   one of: $(PORTABLE) $(MACOS)"
+	@echo "make macos-app  on a Mac: the program as an app with its icon -> dist/Z407 Remote.app"
 	@echo "make android    Android app: unit tests + debug APK      -> dist/z407_android_debug.apk"
 	@echo "                (needs JDK 17 and the Android SDK, see README)"
 	@echo "make test | vet | fmt | clean"
@@ -61,6 +62,13 @@ ifneq ($(HOST_OS),darwin)
 endif
 	CGO_ENABLED=1 GOOS=darwin GOARCH=$(word 2,$(subst -, ,$@)) \
 		$(BUILD) -ldflags="$(LDFLAGS)" -o dist/z407_$(subst -,_,$@) $(PKG)
+
+# The app for this Mac's own architecture.
+macos-app: build
+ifneq ($(HOST_OS),darwin)
+	$(error macos-app must be built on macOS)
+endif
+	packaging/macos-app.sh dist/z407 dist
 
 android:
 	cd android && ./gradlew --no-daemon test assembleDebug

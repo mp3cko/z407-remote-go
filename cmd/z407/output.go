@@ -62,3 +62,8 @@ func logToFile() (*os.File, error) {
 func announceLogFile() {
 	fmt.Fprintf(os.Stdout, "Logging to %s\n", logPath())
 }
+
+// isAppBundle reports whether exe is the program inside a macOS .app.
+func isAppBundle(exe string) bool {
+	return strings.Contains(exe, ".app/Contents/MacOS/")
+}

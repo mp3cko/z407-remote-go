@@ -46,6 +46,10 @@ jobs:
             # console. z407_console.exe logs to the terminal it runs in.
             go build -trimpath -ldflags="-s -w -H=windowsgui" -o "dist/$name/z407.exe" ./cmd/z407
             go build -trimpath -ldflags="-s -w" -o "dist/$name/z407_console.exe" ./cmd/z407
+          elif [ "$GOOS" = darwin ]; then
+            # "Z407 Remote.app" wraps the program, which gives it its icon.
+            go build -trimpath -ldflags="-s -w" -o "$RUNNER_TEMP/z407" ./cmd/z407
+            packaging/macos-app.sh "$RUNNER_TEMP/z407" "dist/$name" "$GITHUB_REF_NAME"
           else
             go build -trimpath -ldflags="-s -w" -o "dist/$name/z407" ./cmd/z407
           fi

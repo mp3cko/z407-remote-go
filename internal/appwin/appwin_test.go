@@ -113,7 +113,8 @@ func TestOpenApp(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(*log) != 1 || (*log)[0].path != "/usr/bin/google-chrome" ||
-		!reflect.DeepEqual((*log)[0].args, AppArgs("http://127.0.0.1:5000", "/home/me/.cache/z407/app-window-5000")) {
+		// On Linux the window gets a class, so that a desktop entry can give it its icon.
+		!reflect.DeepEqual((*log)[0].args, append(AppArgs("http://127.0.0.1:5000", "/home/me/.cache/z407/app-window-5000"), "--class=z407")) {
 		t.Fatalf("started %+v", *log)
 	}
 

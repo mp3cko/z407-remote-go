@@ -26,6 +26,10 @@ const (
 	WindowHeight = 940
 )
 
+// WindowClass is the window class of the app window on Linux. A desktop
+// entry naming it (StartupWMClass) lends the window its icon.
+const WindowClass = "z407"
+
 // Process is a started browser.
 type Process interface {
 	// Wait blocks until the process exits.
@@ -211,7 +215,11 @@ func (s System) OpenApp(url string, port int) (Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.Start(browser, AppArgs(url, dir))
+	args := AppArgs(url, dir)
+	if s.GOOS != "windows" && s.GOOS != "darwin" {
+		args = append(args, "--class="+WindowClass)
+	}
+	return s.Start(browser, args)
 }
 
 // DefaultBrowserCommand returns the command that opens url in the system

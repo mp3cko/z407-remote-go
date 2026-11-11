@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Z407 Remote</string>
+	<key>CFBundleDisplayName</key>
+	<string>Z407 Remote</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.mp3cko.z407</string>
+	<key>CFBundleExecutable</key>
+	<string>z407</string>
+	<key>CFBundleIconFile</key>
+	<string>z407</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<!-- The program has no window of its own (the remote opens in a browser
+	     window), so it stays out of the Dock instead of sitting there as an
+	     app that does not respond. -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Z407 Remote controls the Logitech Z407 speakers over Bluetooth.</string>
+</dict>
+</plist>
