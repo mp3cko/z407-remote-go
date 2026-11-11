@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#151413">
 <title>Z407 Remote</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f0652a'/%3E%3Cpath d='M9 13v6h4l5 4V9l-5 4zM21 12a5 5 0 010 8' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root {
@@ -423,6 +426,11 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
 
   refresh();
   setInterval(refresh, 5000);
+
+  // Held open so the app knows this page exists: when the remote runs in a
+  // normal browser tab, the app stops once the last local page is closed.
+  if ('EventSource' in window) new EventSource('/api/events');
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>
 </body>

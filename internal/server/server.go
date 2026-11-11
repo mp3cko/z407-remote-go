@@ -2,11 +2,13 @@
 package server
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
+	"mime"
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/logx"
@@ -14,6 +16,13 @@ import (
 
 //go:embed index.html
 var indexHTML []byte
+
+// static holds the files that make the page installable on a phone: the web
+// app manifest, its icons and the service worker.
+//
+//go:generate go run icongen.go
+//go:embed static
+var static embed.FS
 
 const notConnectedMsg = "Speakers not connected. Waiting for background connection..."
 
@@ -40,10 +49,14 @@ type Option func(*srv)
 // WithLogger sets the logger (default: colored output on stderr).
 func WithLogger(l *logx.Logger) Option { return func(s *srv) { s.log = l } }
 
+// WithPresence reports the pages open on this machine to p.
+func WithPresence(p *Presence) Option { return func(s *srv) { s.presence = p } }
+
 type srv struct {
-	sp   Speaker
-	log  *logx.Logger
-	cmds map[string]func() error
+	sp       Speaker
+	log      *logx.Logger
+	cmds     map[string]func() error
+	presence *Presence
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
@@ -69,6 +82,8 @@ func New(sp Speaker, opts ...Option) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.index)
+	mux.HandleFunc("GET /{file}", s.staticFile)
+	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("POST /api/{command}", s.command)
 	return s.accessLog(mux)
@@ -83,6 +98,26 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 func (s *srv) index(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(indexHTML)
+}
+
+// staticFile serves the embedded files next to the page.
+func (s *srv) staticFile(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("file")
+	data, err := static.ReadFile("static/" + name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	ctype := mime.TypeByExtension(path.Ext(name))
+	switch path.Ext(name) {
+	case ".webmanifest":
+		ctype = "application/manifest+json"
+	case ".js":
+		ctype = "text/javascript; charset=utf-8"
+		w.Header().Set("Cache-Control", "no-cache") // browsers must notice a new service worker
+	}
+	w.Header().Set("Content-Type", ctype)
+	_, _ = w.Write(data)
 }
 
 func (s *srv) status(w http.ResponseWriter, _ *http.Request) {
@@ -118,14 +153,17 @@ func (w *statusWriter) WriteHeader(c int) {
 	w.ResponseWriter.WriteHeader(c)
 }
 
-// accessLog logs every request except the UI's 5s GET /api/status poll,
-// e.g. "POST /api/vol_up -> 200 (2ms) from 192.168.1.50".
+// Unwrap lets http.ResponseController reach the real writer (for Flush).
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// accessLog logs every request except the UI's 5s GET /api/status poll and
+// its event stream, e.g. "POST /api/vol_up -> 200 (2ms) from 192.168.1.50".
 func (s *srv) accessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		start := time.Now()
 		next.ServeHTTP(sw, r)
-		if r.Method == http.MethodGet && r.URL.Path == "/api/status" {
+		if r.Method == http.MethodGet && (r.URL.Path == "/api/status" || r.URL.Path == "/api/events") {
 			return
 		}
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
