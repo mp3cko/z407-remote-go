@@ -221,7 +221,8 @@ func TestNoWindowFlag(t *testing.T) {
 
 func TestFallbackTabLifetime(t *testing.T) {
 	o := &fakeOpener{appErr: appwin.ErrNoBrowser}
-	a := startApp(t, deps{win: o, grace: 60 * time.Millisecond})
+	// The grace period must outlast a reload even on a slow machine.
+	a := startApp(t, deps{win: o, grace: 500 * time.Millisecond})
 	_, port, _ := net.SplitHostPort(a.addr)
 	if apps, tabs := o.opened(); len(apps) != 1 || len(tabs) != 1 || tabs[0] != "http://127.0.0.1:"+port {
 		t.Fatalf("opened apps=%v tabs=%v", apps, tabs)

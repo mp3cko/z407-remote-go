@@ -7,7 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"syscall"
@@ -182,16 +182,18 @@ func (s System) profileDir(browser string, port int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return filepath.Join(home, "snap", "chromium", "common", "z407", name), nil
+		return path.Join(home, "snap", "chromium", "common", "z407", name), nil
 	}
 	cache, err := s.CacheDir()
 	if err != nil {
 		return "", err
 	}
+	// Joined by hand, not with filepath: the separator has to follow GOOS,
+	// so that the tests mean the same on every system.
 	if s.GOOS == "windows" {
 		return strings.TrimRight(cache, `\`) + `\z407\` + name, nil
 	}
-	return filepath.Join(cache, "z407", name), nil
+	return path.Join(cache, "z407", name), nil
 }
 
 // OpenApp opens url in a Chromium app window and returns the browser process;

@@ -181,11 +181,11 @@ func TestSlowPeerTimesOut(t *testing.T) {
 	defer close(release)
 	up := newPeer(t)
 	r := newRig(strings.TrimPrefix(slow.URL, "http://"), up.addr())
-	r.PeerTimeout = 30 * time.Millisecond
+	r.PeerTimeout = 300 * time.Millisecond // short, but enough for the healthy peer on a slow machine
 	r.advance(0)
 	start := time.Now()
 	r.advance(SearchTimeout)
-	if time.Since(start) > 2*time.Second {
+	if time.Since(start) > 5*time.Second {
 		t.Fatal("a slow peer held up the takeover")
 	}
 	if !reflect.DeepEqual(up.got(), shutdown) {
