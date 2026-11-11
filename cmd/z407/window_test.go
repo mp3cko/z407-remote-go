@@ -157,7 +157,7 @@ func (a *app) page() (closePage func()) {
 
 func TestWindowOpensAndClosingItStops(t *testing.T) {
 	o := &fakeOpener{proc: newFakeProc()}
-	a := startApp(t, deps{win: o})
+	a := startApp(t, deps{win: o, earlyExit: 20 * time.Millisecond})
 	a.stillRunning(50 * time.Millisecond)
 
 	apps, tabs := o.opened()
@@ -191,6 +191,55 @@ func TestWindowClosedWithErrorExitStillStops(t *testing.T) {
 	a.waitExit()
 	if _, tabs := o.opened(); len(tabs) != 0 {
 		t.Errorf("fell back to a tab: %v", tabs)
+	}
+}
+
+// A browser that is already running with the app's profile takes the window
+// over: the started process exits at once and cleanly, but the window is
+// there. The app must keep running and stop when the page goes away.
+func TestWindowHandedToRunningBrowser(t *testing.T) {
+	o := &fakeOpener{proc: newFakeProc()}
+	o.proc.exit(nil)
+	a := startApp(t, deps{win: o, earlyExit: time.Second, grace: 30 * time.Millisecond})
+	time.Sleep(60 * time.Millisecond) // the page takes a moment to load
+	closePage := a.page()
+	a.stillRunning(600 * time.Millisecond)
+	if strings.Contains(a.out.String(), "Window closed") {
+		t.Fatalf("output: %s", a.out.String())
+	}
+	if _, tabs := o.opened(); len(tabs) != 0 {
+		t.Errorf("fell back to a tab: %v", tabs)
+	}
+	closePage() // the user closes the window
+	a.waitExit()
+	if !strings.Contains(a.out.String(), "page was closed") {
+		t.Errorf("output: %s", a.out.String())
+	}
+}
+
+// The same long after the start: the browser process ends, the page stays.
+func TestWindowOutlivesItsProcess(t *testing.T) {
+	o := &fakeOpener{proc: newFakeProc()}
+	a := startApp(t, deps{win: o, earlyExit: 10 * time.Millisecond, grace: 30 * time.Millisecond})
+	closePage := a.page()
+	time.Sleep(30 * time.Millisecond)
+	o.proc.exit(nil)
+	a.stillRunning(200 * time.Millisecond)
+	closePage()
+	a.waitExit()
+}
+
+// The window was closed and the page went with it: nothing is left to wait for.
+func TestWindowClosedWithItsPage(t *testing.T) {
+	o := &fakeOpener{proc: newFakeProc()}
+	a := startApp(t, deps{win: o, earlyExit: 10 * time.Millisecond})
+	closePage := a.page()
+	time.Sleep(30 * time.Millisecond)
+	closePage()
+	o.proc.exit(nil)
+	a.waitExit()
+	if !strings.Contains(a.out.String(), "Window closed") {
+		t.Errorf("output: %s", a.out.String())
 	}
 }
 

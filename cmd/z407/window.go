@@ -16,6 +16,10 @@ import (
 // window never opened" rather than "the window was closed".
 const earlyExit = 3 * time.Second
 
+// settle is how long after the browser process ended the page gets to
+// disappear (or, when the window lives on elsewhere, to still be there).
+const settle = 250 * time.Millisecond
+
 // windowOpener shows the remote on this machine. appwin.System is the real one.
 type windowOpener interface {
 	// OpenApp opens url in an app window owned by the returned process.
@@ -46,7 +50,9 @@ type window struct {
 // no-op when there is nothing to close). Preferred is an app window, whose
 // browser process ends when the window is closed. Without a Chromium browser
 // the page opens in the default browser and the app stops once the last page
-// on this machine is gone. ctx is the app's own context.
+// on this machine is gone. The same happens when the browser hands the
+// window to a copy of itself that is already running and exits: the window
+// is there, but no process of ours stands for it. ctx is the app's own context.
 func (w window) open(ctx context.Context, url string, port int) (closeWindow func()) {
 	proc, err := w.win.OpenApp(url, port)
 	switch {
@@ -62,6 +68,11 @@ func (w window) open(ctx context.Context, url string, port int) (closeWindow fun
 			if werr != nil && time.Since(started) < w.early {
 				w.log.Errorf("The app window did not open (%v)", werr)
 				w.openTab(url)
+				return
+			}
+			if werr == nil && w.handedOff(ctx, started) {
+				w.presence.Arm()
+				w.log.Infof("The window is run by a browser that was already open. The app stops when you close the window (or press Ctrl+C)")
 				return
 			}
 			w.log.Infof("Window closed, stopping")
@@ -83,6 +94,30 @@ func (w window) open(ctx context.Context, url string, port int) (closeWindow fun
 		w.openTab(url)
 	}
 	return func() {}
+}
+
+// handedOff reports whether the window is still there although the browser
+// process has ended cleanly. That happens when a browser with the same
+// profile was already running, for instance one left over from the previous
+// run: the new process passes the window on to it and exits at once. A page
+// that is open on this machine tells the two cases apart. Shortly after the
+// start the page may still be loading, so it gets until the early limit.
+func (w window) handedOff(ctx context.Context, started time.Time) bool {
+	deadline := started.Add(w.early)
+	wait := min(settle, w.early)
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(wait):
+		}
+		if w.presence.Present() {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+	}
 }
 
 func (w window) openTab(url string) {

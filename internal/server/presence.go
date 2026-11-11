@@ -56,6 +56,13 @@ func (p *Presence) Arm() {
 	p.mu.Unlock()
 }
 
+// Present reports whether a page is open on this machine right now.
+func (p *Presence) Present() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.clients > 0
+}
+
 func (p *Presence) join() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
