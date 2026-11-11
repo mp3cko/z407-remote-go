@@ -126,6 +126,28 @@ class SpeakerManagerTest {
     }
 
     @Test
+    fun statusTellsWhatIsGoingOn() {
+        // Dials keep failing: the problem is named, capitalized for the display.
+        val failing = start(FakeDialer(failFirst = Int.MAX_VALUE))
+        eventually("problem") { failing.manager.status().problem == "Not found" }
+        assertFalse(failing.manager.status().connected)
+
+        // A dial that hangs: the attempt is under way.
+        val release = java.util.concurrent.CountDownLatch(1)
+        val r = start(FakeDialer(prepare = { _, _ -> release.await() }))
+        eventually("connecting") { r.manager.status().connecting }
+        release.countDown()
+        r.waitConnected()
+        assertEquals(Status(true, 50), r.manager.status())
+    }
+
+    @Test
+    fun failedHandshakeIsNamed() {
+        val r = start(FakeDialer(prepare = { link, _ -> link.writeError = IOException("nope") }))
+        eventually("problem") { r.manager.status().problem == SpeakerManager.PROBLEM_NO_ANSWER }
+    }
+
+    @Test
     fun dialFailureRetries() {
         val d = FakeDialer(failFirst = 3)
         val r = start(d)

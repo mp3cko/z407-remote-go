@@ -14,7 +14,7 @@ import (
 )
 
 // ErrNotFound is returned when no speaker advertising the Z407 service is seen.
-var ErrNotFound = errors.New("ble: Z407 speaker not found")
+var ErrNotFound = fmt.Errorf("ble: %w", speaker.ErrNotFound)
 
 const (
 	defaultScanTimeout  = 10 * time.Second
@@ -84,7 +84,7 @@ type link struct {
 // Dial scans for the speaker, connects, and wires notifications to h.
 func (d *Dialer) Dial(ctx context.Context, h speaker.Handler) (speaker.Link, error) {
 	if err := d.r.enable(); err != nil {
-		return nil, fmt.Errorf("ble: enable adapter: %w", err)
+		return nil, fmt.Errorf("ble: %w: %w", speaker.ErrNoBluetooth, err)
 	}
 	addr, err := d.find(ctx)
 	if err != nil {

@@ -434,3 +434,46 @@ func TestRepeatedFailureLoggedOnce(t *testing.T) {
 		t.Errorf("identical failure logged %d times, want 1: %q", fails, lines)
 	}
 }
+
+func TestProgress(t *testing.T) {
+	if c, p := NewManager(&fakeDialer{}).Progress(); c || p != "" {
+		t.Fatalf("before Run: connecting=%v problem=%q", c, p)
+	}
+
+	// A dial that hangs: the attempt is under way.
+	release := make(chan struct{})
+	d := &fakeDialer{prepare: func(*fakeLink, Handler) { <-release }}
+	m, _, _ := start(t, d)
+	eventually(t, "connecting", func() bool { c, _ := m.Progress(); return c })
+	close(release)
+	waitConnected(t, m)
+	if c, p := m.Progress(); c || p != "" {
+		t.Fatalf("connected: connecting=%v problem=%q", c, p)
+	}
+}
+
+type errDialer struct{ err error }
+
+func (d errDialer) Dial(context.Context, Handler) (Link, error) { return nil, d.err }
+
+func TestProgressNamesTheProblem(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want string
+	}{
+		{fmt.Errorf("ble: %w", ErrNotFound), problemNotFound},
+		{fmt.Errorf("ble: %w: %w", ErrNoBluetooth, errors.New("adapter gone")), problemNoBluetooth},
+		{errors.New("ble: connect: timeout"), problemConnect},
+	} {
+		m, _, _ := start(t, errDialer{c.err})
+		eventually(t, c.want, func() bool { _, p := m.Progress(); return p == c.want })
+	}
+
+	// A failed handshake.
+	d := &fakeDialer{prepare: func(l *fakeLink, _ Handler) { l.writeErr = errors.New("nope") }}
+	m, _, _ := start(t, d)
+	eventually(t, problemNoAnswer, func() bool { _, p := m.Progress(); return p == problemNoAnswer })
+	if c, _ := m.Status(); c {
+		t.Fatal("connected after a failed handshake")
+	}
+}

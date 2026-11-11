@@ -17,6 +17,34 @@ import (
 // ErrNotConnected is returned by commands when the speakers are not connected.
 var ErrNotConnected = errors.New("speakers not connected")
 
+// Errors a Dialer wraps so that the remote can say what is wrong.
+var (
+	// ErrNotFound: no speaker was seen while scanning.
+	ErrNotFound = errors.New("Z407 speaker not found")
+	// ErrNoBluetooth: the Bluetooth adapter is missing or switched off.
+	ErrNoBluetooth = errors.New("Bluetooth is not available")
+)
+
+// What the remote shows for a failed connection attempt.
+const (
+	problemNotFound    = "Speakers not found"
+	problemNoBluetooth = "Bluetooth is off or missing"
+	problemConnect     = "Could not connect"
+	problemNoAnswer    = "Speakers did not answer"
+	problemLost        = "Connection lost"
+)
+
+// dialProblem names a failed Dial for the remote's display.
+func dialProblem(err error) string {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return problemNotFound
+	case errors.Is(err, ErrNoBluetooth):
+		return problemNoBluetooth
+	}
+	return problemConnect
+}
+
 const (
 	defaultRetry     = 5 * time.Second
 	defaultHeartbeat = 5 * time.Second
@@ -78,13 +106,15 @@ type Manager struct {
 
 	wake chan struct{} // signalled when the current connection is lost
 
-	mu        sync.Mutex
-	link      Link
-	connected bool
-	dropped   bool // current attempt lost its connection
-	pendingKA bool // keep-alive received before Dial returned
-	attempt   int  // generation of the current attempt; stale callbacks are ignored
-	volume    int
+	mu         sync.Mutex
+	link       Link
+	connected  bool
+	connecting bool   // a connection attempt is under way
+	problem    string // what went wrong with the last attempt; "" = nothing
+	dropped    bool   // current attempt lost its connection
+	pendingKA  bool   // keep-alive received before Dial returned
+	attempt    int    // generation of the current attempt; stale callbacks are ignored
+	volume     int
 }
 
 // NewManager returns a Manager that connects through d once Run is called.
@@ -151,7 +181,7 @@ func (m *Manager) wait(ctx context.Context, d time.Duration, wakeable bool) {
 func (m *Manager) shutdown() {
 	m.mu.Lock()
 	l := m.link
-	m.link, m.connected = nil, false
+	m.link, m.connected, m.connecting = nil, false, false
 	m.attempt++
 	m.mu.Unlock()
 	if l != nil {
@@ -171,6 +201,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	m.mu.Lock()
 	old := m.link
 	m.link, m.connected, m.dropped, m.pendingKA = nil, false, false, false
+	m.connecting = true
 	m.attempt++
 	id := m.attempt
 	m.mu.Unlock()
@@ -188,21 +219,25 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	})
 	if err != nil {
 		m.logFail("Dial failed: %v", err)
+		m.failed(dialProblem(err))
 		return false
 	}
 	if err := l.Write(protocol.Handshake); err != nil {
 		m.logFail("Handshake failed: %v", err)
 		_ = l.Close()
+		m.failed(problemNoAnswer)
 		return false
 	}
 
 	m.mu.Lock()
 	if m.attempt != id || m.dropped {
+		m.connecting, m.problem = false, problemLost
 		m.mu.Unlock()
 		_ = l.Close()
 		return false
 	}
 	m.link, m.connected = l, true
+	m.connecting, m.problem = false, ""
 	pending := m.pendingKA
 	m.pendingKA = false
 	m.mu.Unlock()
@@ -213,6 +248,13 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	m.lastFail = ""
 	m.logf(logx.Success, "Connected to Z407")
 	return true
+}
+
+// failed ends a connection attempt that did not work out.
+func (m *Manager) failed(problem string) {
+	m.mu.Lock()
+	m.connecting, m.problem = false, problem
+	m.mu.Unlock()
 }
 
 func (m *Manager) reply(l Link) {
@@ -275,6 +317,15 @@ func (m *Manager) Status() (connected bool, volume int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.connected, m.volume
+}
+
+// Progress tells more about a missing connection: whether an attempt to
+// connect is under way, and what went wrong with the last one ("" when
+// nothing did). The problem stays until a connection succeeds.
+func (m *Manager) Progress() (connecting bool, problem string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.connecting, m.problem
 }
 
 func (m *Manager) send(cmd protocol.Command) error {

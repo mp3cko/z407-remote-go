@@ -32,20 +32,21 @@ type fakeBackend struct {
 func newFakeBackend() *fakeBackend {
 	return &fakeBackend{ran: make(chan struct{}), done: make(chan struct{})}
 }
-func (f *fakeBackend) Run(ctx context.Context) { close(f.ran); <-ctx.Done(); close(f.done) }
-func (f *fakeBackend) Status() (bool, int)     { return true, 42 }
-func (f *fakeBackend) VolumeUp() error         { return nil }
-func (f *fakeBackend) VolumeDown() error       { return nil }
-func (f *fakeBackend) PlayPause() error        { return nil }
-func (f *fakeBackend) InputBluetooth() error   { return nil }
-func (f *fakeBackend) InputAux() error         { return nil }
-func (f *fakeBackend) InputUSB() error         { return nil }
-func (f *fakeBackend) BluetoothPair() error    { return nil }
-func (f *fakeBackend) FactoryReset() error     { return nil }
-func (f *fakeBackend) BassUp() error           { return nil }
-func (f *fakeBackend) BassDown() error         { return nil }
-func (f *fakeBackend) NextTrack() error        { return nil }
-func (f *fakeBackend) PrevTrack() error        { return nil }
+func (f *fakeBackend) Run(ctx context.Context)  { close(f.ran); <-ctx.Done(); close(f.done) }
+func (f *fakeBackend) Status() (bool, int)      { return true, 42 }
+func (f *fakeBackend) Progress() (bool, string) { return false, "" }
+func (f *fakeBackend) VolumeUp() error          { return nil }
+func (f *fakeBackend) VolumeDown() error        { return nil }
+func (f *fakeBackend) PlayPause() error         { return nil }
+func (f *fakeBackend) InputBluetooth() error    { return nil }
+func (f *fakeBackend) InputAux() error          { return nil }
+func (f *fakeBackend) InputUSB() error          { return nil }
+func (f *fakeBackend) BluetoothPair() error     { return nil }
+func (f *fakeBackend) FactoryReset() error      { return nil }
+func (f *fakeBackend) BassUp() error            { return nil }
+func (f *fakeBackend) BassDown() error          { return nil }
+func (f *fakeBackend) NextTrack() error         { return nil }
+func (f *fakeBackend) PrevTrack() error         { return nil }
 
 type fakeConn struct {
 	net.Conn

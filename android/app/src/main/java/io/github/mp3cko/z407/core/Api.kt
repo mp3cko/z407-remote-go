@@ -57,7 +57,9 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
 
     private fun status(): ApiResponse {
         val s = speaker.status()
-        return json(200, "connected" to s.connected, "volume" to s.volume)
+        return json(
+            200, "connected" to s.connected, "connecting" to s.connecting, "problem" to s.problem, "volume" to s.volume,
+        )
     }
 
     private fun command(name: String): ApiResponse {

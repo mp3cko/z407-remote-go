@@ -36,10 +36,10 @@ class ApiTest {
 
     @Test
     fun status() {
-        check(disconnectedApi().handle("GET", "/api/status", null), 200, "{\"connected\":false,\"volume\":50}\n")
+        check(disconnectedApi().handle("GET", "/api/status", null), 200, "{\"connected\":false,\"connecting\":false,\"problem\":\"\",\"volume\":50}\n")
         val api = connectedApi()
         api.handle("POST", "/api/vol_up", null)
-        check(api.handle("GET", "/api/status", null), 200, "{\"connected\":true,\"volume\":55}\n")
+        check(api.handle("GET", "/api/status", null), 200, "{\"connected\":true,\"connecting\":false,\"problem\":\"\",\"volume\":55}\n")
     }
 
     @Test

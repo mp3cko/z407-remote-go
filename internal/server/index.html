@@ -110,6 +110,11 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
   background: radial-gradient(circle at 35% 30%, #fff, var(--green) 55%);
   box-shadow: 0 0 6px var(--green), 0 0 14px var(--green);
 }
+#conn.busy .led {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--amber) 55%);
+  box-shadow: 0 0 6px var(--amber), 0 0 14px var(--amber);
+  animation-duration: .6s;
+}
 #ir.ok .led, #ir.down .led {
   background: radial-gradient(circle at 35% 30%, #fff, var(--c) 55%);
   box-shadow: 0 0 6px var(--c), 0 0 14px var(--c), inset 0 -1px 1px rgba(0, 0, 0, .25);
@@ -152,6 +157,7 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
 #msg.err { color: var(--red); }
 #connText { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; text-align: right; color: var(--red); text-shadow: 0 0 8px currentColor; }
 #conn.on #connText { color: var(--green); }
+#conn.busy #connText { color: var(--amber); }
 #volBar { display: flex; gap: 3px; height: 18px; }
 #volBar i { flex: 1; border-radius: 2px; background: var(--seg-off); transition: background .15s, box-shadow .15s; }
 #volBar i.lit { background: var(--c); box-shadow: 0 0 8px var(--c); }
@@ -308,7 +314,7 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
         <div><small>VOLUME · EST.</small><span id="volText">--</span></div>
         <div class="status">
           <span id="msg" role="status" aria-live="polite"></span>
-          <span class="lamp"><span id="connText">Connecting…</span><span class="led"></span></span>
+          <span class="lamp"><span id="connText">Starting…</span><span class="led"></span></span>
         </div>
       </div>
       <div id="volBar" role="img" aria-label="Estimated volume"></div>
@@ -418,12 +424,33 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     volText.textContent = String(pct).padStart(2, '0');
   }
 
-  function say(msg, isErr) {
-    msgEl.textContent = msg;
+  // The message line of the display. say() shows a passing note; between
+  // notes the line shows what keeps the speakers from connecting, if anything.
+  let problem = '', saying = false;
+
+  function showMsg(text, isErr) {
+    if (msgEl.textContent !== text) msgEl.textContent = text;
     msgEl.classList.toggle('err', !!isErr);
-    msgEl.classList.add('show');
+    msgEl.classList.toggle('show', !!text);
+  }
+
+  function say(msg, isErr) {
+    saying = true;
+    showMsg(msg, isErr);
     clearTimeout(msgTimer);
-    msgTimer = setTimeout(() => msgEl.classList.remove('show'), 2200);
+    msgTimer = setTimeout(() => { saying = false; showMsg(problem, true); }, 2200);
+  }
+
+  function setProblem(text) {
+    problem = text;
+    if (!saying) showMsg(problem, true);
+  }
+
+  // The connection line: 'on' (connected), 'busy' (connecting) or neither.
+  function showConn(state, text) {
+    conn.classList.toggle('on', state === 'on');
+    conn.classList.toggle('busy', state === 'busy');
+    connText.textContent = text;
   }
 
   // Signal lamp: green while the app answers, red once it stops.
@@ -462,14 +489,22 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     try {
       const data = await (await fetch('/api/status')).json();
       api(true);
-      conn.classList.toggle('on', !!data.connected);
-      connText.textContent = data.connected ? 'Connected' : 'Not connected';
+      if (data.connected) showConn('on', 'Connected');
+      else if (data.connecting) showConn('busy', 'Connecting…');
+      else showConn('', 'Not connected');
+      setProblem(data.connected ? '' : data.problem || '');
       if (typeof data.volume === 'number') showVolume(data.volume);
     } catch {
       api(false);
-      conn.classList.remove('on');
-      connText.textContent = 'App unreachable';
+      showConn('', 'App unreachable');
+      setProblem('');
     }
+  }
+
+  // Poll faster while not connected, so the display follows the attempts.
+  async function poll() {
+    await refresh();
+    setTimeout(poll, conn.classList.contains('on') ? 5000 : 1500);
   }
 
   document.addEventListener('click', (e) => {
@@ -559,10 +594,9 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     } catch { /* the block stays hidden */ }
   }
 
-  refresh();
+  poll();
   loadPeers();
   loadAddrs();
-  setInterval(refresh, 5000);
 
   // Held open so the app knows this page exists: when the remote runs in a
   // normal browser tab, the app stops once the last local page is closed.

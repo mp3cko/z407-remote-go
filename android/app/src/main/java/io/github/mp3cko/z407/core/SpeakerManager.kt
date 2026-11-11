@@ -5,8 +5,17 @@ import java.io.IOException
 /** Thrown by commands when the speakers are not connected. */
 class NotConnectedException : IOException("speakers not connected")
 
-/** Connection state and estimated volume (0-100). */
-data class Status(val connected: Boolean, val volume: Int)
+/**
+ * Connection state and estimated volume (0-100). While not connected,
+ * [connecting] tells whether an attempt is under way and [problem] what went
+ * wrong with the last one ("" when nothing did).
+ */
+data class Status(
+    val connected: Boolean,
+    val volume: Int,
+    val connecting: Boolean = false,
+    val problem: String = "",
+)
 
 /**
  * Owns the connection lifecycle and the command API. A port of
@@ -23,11 +32,16 @@ class SpeakerManager(
         const val DEFAULT_RETRY_MILLIS = 5000L
         const val DEFAULT_HEARTBEAT_MILLIS = 5000L
         const val VOLUME_STEP = 5
+        const val PROBLEM_CONNECT = "Could not connect"
+        const val PROBLEM_NO_ANSWER = "Speakers did not answer"
+        const val PROBLEM_LOST = "Connection lost"
     }
 
     private val lock = Object()
     private var link: Link? = null
     private var connected = false
+    private var connecting = false // a connection attempt is under way
+    private var problem = "" // what went wrong with the last attempt
     private var dropped = false // current attempt lost its connection
     private var pendingKeepAlive = false // keep-alive received before dial returned
     private var attempt = 0 // generation of the current attempt; stale callbacks are ignored
@@ -96,6 +110,7 @@ class SpeakerManager(
             old = link
             link = null
             connected = false
+            connecting = false
             attempt++
             runner = null
         }
@@ -119,6 +134,7 @@ class SpeakerManager(
             connected = false
             dropped = false
             pendingKeepAlive = false
+            connecting = true
             wake = false // discard wake-ups belonging to the previous connection
             id = ++attempt
         }
@@ -132,9 +148,12 @@ class SpeakerManager(
             })
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
+            synchronized(lock) { connecting = false }
             return false
         } catch (e: IOException) {
             logFail("Dial failed: ${e.message}")
+            // The dialer's messages are short and plain ("Bluetooth is switched off").
+            failed(e.message?.replaceFirstChar { it.uppercase() } ?: PROBLEM_CONNECT)
             return false
         }
         try {
@@ -142,6 +161,7 @@ class SpeakerManager(
         } catch (e: IOException) {
             logFail("Handshake failed: ${e.message}")
             l.close()
+            failed(PROBLEM_NO_ANSWER)
             return false
         }
 
@@ -154,7 +174,11 @@ class SpeakerManager(
                 pending = pendingKeepAlive
                 pendingKeepAlive = false
                 accepted = true
+                problem = ""
+            } else {
+                problem = PROBLEM_LOST
             }
+            connecting = false
         }
         if (!accepted) {
             l.close()
@@ -165,6 +189,14 @@ class SpeakerManager(
         lastFail = ""
         log("Connected to Z407")
         return true
+    }
+
+    /** Ends a connection attempt that did not work out. */
+    private fun failed(why: String) {
+        synchronized(lock) {
+            connecting = false
+            problem = why
+        }
     }
 
     private fun reply(l: Link) {
@@ -219,7 +251,9 @@ class SpeakerManager(
         lock.notifyAll()
     }
 
-    fun status(): Status = synchronized(lock) { Status(connected, volume) }
+    fun status(): Status = synchronized(lock) {
+        if (connected) Status(true, volume) else Status(false, volume, connecting, problem)
+    }
 
     @Throws(IOException::class)
     private fun send(cmd: ByteArray) {

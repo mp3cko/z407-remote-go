@@ -19,8 +19,11 @@ type fakeSpeaker struct {
 	mu        sync.Mutex
 	connected bool
 	volume    int
-	calls     []string
-	err       error
+	// Progress
+	connecting bool
+	problem    string
+	calls      []string
+	err        error
 }
 
 func (f *fakeSpeaker) rec(n string) error {
@@ -34,7 +37,10 @@ func (f *fakeSpeaker) got() []string {
 	defer f.mu.Unlock()
 	return append([]string(nil), f.calls...)
 }
-func (f *fakeSpeaker) Status() (bool, int)   { return f.connected, f.volume }
+func (f *fakeSpeaker) Status() (bool, int) { return f.connected, f.volume }
+func (f *fakeSpeaker) Progress() (bool, string) {
+	return f.connecting, f.problem
+}
 func (f *fakeSpeaker) VolumeUp() error       { return f.rec("VolumeUp") }
 func (f *fakeSpeaker) VolumeDown() error     { return f.rec("VolumeDown") }
 func (f *fakeSpeaker) PlayPause() error      { return f.rec("PlayPause") }
@@ -177,7 +183,7 @@ func TestStatus(t *testing.T) {
 	for _, sp := range []*fakeSpeaker{{connected: true, volume: 55}, {}} {
 		rec := do(New(sp, quiet), "GET", "/api/status")
 		m := decode(t, rec)
-		if rec.Code != 200 || len(m) != 2 || m["connected"] != sp.connected || m["volume"] != float64(sp.volume) {
+		if rec.Code != 200 || len(m) != 4 || m["connecting"] != false || m["problem"] != "" || m["connected"] != sp.connected || m["volume"] != float64(sp.volume) {
 			t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 		}
 	}
@@ -239,5 +245,13 @@ func TestAddrs(t *testing.T) {
 	h := New(&fakeSpeaker{}, quiet, WithAddrs(func() []string { return []string{"http://192.168.1.20:5000", "http://10.0.0.2:5000"} }))
 	if rec := do(h, "GET", "/api/addrs"); rec.Code != 200 || rec.Body.String() != `{"urls":["http://192.168.1.20:5000","http://10.0.0.2:5000"]}`+"\n" {
 		t.Errorf("addresses: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestStatusHidesStaleProgressOnceConnected(t *testing.T) {
+	sp := &fakeSpeaker{connected: true, volume: 50, connecting: true, problem: "Speakers not found"}
+	m := decode(t, do(New(sp, quiet), "GET", "/api/status"))
+	if m["connecting"] != false || m["problem"] != "" {
+		t.Fatalf("got %v", m)
 	}
 }

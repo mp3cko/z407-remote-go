@@ -26,8 +26,11 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		body   string
 	}{
 		{"status", func() *fakeSpeaker { return &fakeSpeaker{volume: 50} }, "GET", "/api/status", 200,
-			`{"connected":false,"volume":50}`},
-		{"status connected", connected, "GET", "/api/status", 200, `{"connected":true,"volume":55}`},
+			`{"connected":false,"connecting":false,"problem":"","volume":50}`},
+		{"status connecting", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, connecting: true, problem: "Speakers not found"} },
+			"GET", "/api/status", 200, `{"connected":false,"connecting":true,"problem":"Speakers not found","volume":50}`},
+		{"status connected", connected, "GET", "/api/status", 200,
+			`{"connected":true,"connecting":false,"problem":"","volume":55}`},
 		{"command", connected, "POST", "/api/vol_up", 200, `{"success":true}`},
 		{"not connected", func() *fakeSpeaker { return &fakeSpeaker{} }, "POST", "/api/vol_up", 404,
 			`{"error":"Speakers not connected. Waiting for background connection...","success":false}`},

@@ -31,6 +31,9 @@ const notConnectedMsg = "Speakers not connected. Waiting for background connecti
 // Speaker is the subset of speaker.Manager used by the HTTP handlers.
 type Speaker interface {
 	Status() (connected bool, volume int)
+	// Progress tells more while not connected: whether an attempt to
+	// connect is under way, and what went wrong with the last one.
+	Progress() (connecting bool, problem string)
 	VolumeUp() error
 	VolumeDown() error
 	PlayPause() error
@@ -146,7 +149,13 @@ func (s *srv) staticFile(w http.ResponseWriter, r *http.Request) {
 
 func (s *srv) status(w http.ResponseWriter, _ *http.Request) {
 	connected, vol := s.sp.Status()
-	writeJSON(w, http.StatusOK, map[string]any{"connected": connected, "volume": vol})
+	connecting, problem := s.sp.Progress()
+	if connected {
+		connecting, problem = false, ""
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"connected": connected, "connecting": connecting, "problem": problem, "volume": vol,
+	})
 }
 
 func (s *srv) command(w http.ResponseWriter, r *http.Request) {
