@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The page's own background (index.html, dark scheme). -->
+    <color name="page">#151413</color>
+</resources>

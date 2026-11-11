@@ -1,0 +1,13 @@
+# Build output and machine-specific files. The web UI is copied from
+# ../internal/server at build time and is never committed here.
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+# Signing keys never belong in the repository.
+*.jks
+*.keystore
+keystore.properties

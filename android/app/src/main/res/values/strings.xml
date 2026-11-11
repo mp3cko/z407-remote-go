@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Z407 Remote</string>
+    <string name="permission_title">Bluetooth access is needed</string>
+    <string name="permission_nearby">Z407 Remote controls the speakers over Bluetooth. Without the \"Nearby devices\" permission it cannot find or connect to them, and the remote will stay on \"Not connected\".</string>
+    <string name="permission_location">Z407 Remote controls the speakers over Bluetooth. On this version of Android, apps may only search for Bluetooth devices with the Location permission (and with Location switched on). The app does not use or store your position. Without the permission the remote will stay on \"Not connected\".</string>
+    <string name="permission_retry">Ask again</string>
+    <string name="permission_settings">App settings</string>
+    <string name="permission_close">Not now</string>
+</resources>

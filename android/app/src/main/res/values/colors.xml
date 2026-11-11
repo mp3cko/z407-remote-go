@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The page's own background (index.html, light scheme). -->
+    <color name="page">#E9E6E0</color>
+    <color name="icon_tile">#F0652A</color>
+</resources>
