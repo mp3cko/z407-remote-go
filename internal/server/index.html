@@ -5,173 +5,317 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <title>Z407 Remote</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314b8a6'/%3E%3Cpath d='M9 13v6h4l5 4V9l-5 4zM21 12a5 5 0 010 8' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f0652a'/%3E%3Cpath d='M9 13v6h4l5 4V9l-5 4zM21 12a5 5 0 010 8' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 :root {
-  --bg: #0f1214;
-  --surface: #181c1f;
-  --surface-2: #20262a;
-  --border: #2b3338;
-  --text: #e8ecee;
-  --muted: #8b979d;
-  --accent: #14b8a6;
-  --accent-ink: #04201c;
-  --ok: #34d399;
-  --bad: #f87171;
-  --radius: 14px;
+  /* page */
+  --page: #151413;
+  --page-glow: #2a2623;
+  --page-text: #a39c90;
+  /* remote shell */
+  --shell-1: #efe9dc;
+  --shell-2: #d9d2c2;
+  --shell-edge: #a9a292;
+  --well: #c8c1b0;
+  --print: #57524a;
+  /* keys */
+  --dark-1: #403e3b;
+  --dark-2: #262523;
+  --dark-edge: #121211;
+  --light-1: #fbf8f1;
+  --light-2: #e6e0d2;
+  --light-edge: #aaa393;
+  --orange-1: #ff8548;
+  --orange-2: #ea5a1c;
+  --orange-edge: #a43b0d;
+  --red-1: #df5547;
+  --red-2: #bf3527;
+  --red-edge: #7c1d14;
+  /* display + indicators */
+  --lcd: #0d110d;
+  --lcd-ink: #ffb648;
+  --seg-off: rgba(255, 255, 255, .08);
+  --green: #45e07f;
+  --amber: #ffb648;
+  --red: #ff5a4a;
+  --blue: #4aa8ff;
 }
 @media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f3f5f6;
-    --surface: #ffffff;
-    --surface-2: #eceff1;
-    --border: #d9dee1;
-    --text: #1a2024;
-    --muted: #5d6a71;
-    --accent: #0f9488;
-    --accent-ink: #ffffff;
-    --ok: #059669;
-    --bad: #dc2626;
-  }
+  :root { --page: #e9e6e0; --page-glow: #f7f5f1; --page-text: #6b665d; }
 }
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { height: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  margin: 0; min-height: 100%;
+  background: radial-gradient(120% 80% at 50% 0%, var(--page-glow), var(--page) 70%) fixed;
+  color: var(--page-text);
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-  -webkit-user-select: none;
-  user-select: none;
+  padding: max(18px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  -webkit-user-select: none; user-select: none;
 }
-main { max-width: 420px; margin: 0 auto; display: grid; gap: 14px; }
-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 2px; }
-h1 { font-size: 1.15rem; margin: 0; letter-spacing: .02em; }
-.pill {
-  display: inline-flex; align-items: center; gap: 8px;
-  font-size: .8rem; color: var(--muted);
-  background: var(--surface); border: 1px solid var(--border);
-  padding: 5px 11px; border-radius: 999px;
-}
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
-.pill.on .dot { background: var(--ok); }
-.pill.on { color: var(--text); }
+main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; }
 
-section {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 14px;
+/* ---------- the remote ---------- */
+.remote {
+  display: grid; gap: 22px;
+  grid-template-areas: "brand" "display" "transport" "levels" "input" "system";
+  padding: 22px 20px 26px;
+  border-radius: 40px;
+  color: var(--print);
+  background: linear-gradient(175deg, var(--shell-1), var(--shell-2));
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, .75),
+    inset 0 -3px 0 rgba(0, 0, 0, .12),
+    0 2px 0 var(--shell-edge),
+    0 6px 0 #8f8878,
+    0 24px 50px rgba(0, 0, 0, .45);
 }
-h2 {
-  margin: 0 0 10px; font-size: .72rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: .09em; color: var(--muted);
-}
-.row { display: grid; gap: 10px; }
-.c2 { grid-template-columns: repeat(2, 1fr); }
-.c3 { grid-template-columns: repeat(3, 1fr); }
+.brand { grid-area: brand; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px; }
+.display { grid-area: display; }
+.transport { grid-area: transport; }
+.levels { grid-area: levels; }
+.input { grid-area: input; }
+.system { grid-area: system; }
 
+.logo { display: flex; align-items: baseline; gap: 10px; margin: 0; font-size: 1rem; }
+.logo b { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: #2b2926; }
+.print, .logo span {
+  font-size: .66rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--print);
+}
+
+/* indicator lamps */
+.led {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: #6f695d;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .5), 0 1px 0 rgba(255, 255, 255, .6);
+  transition: background .2s, box-shadow .2s;
+}
+.led.lit, .lamp.on .led {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--c, var(--green)) 55%);
+  box-shadow: 0 0 6px var(--c, var(--green)), 0 0 14px var(--c, var(--green)), inset 0 -1px 1px rgba(0, 0, 0, .25);
+}
+.lamp { display: inline-flex; align-items: center; gap: 8px; }
+#conn .led { box-shadow: none; }
+#conn:not(.on) .led {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--red) 55%);
+  box-shadow: 0 0 6px var(--red), 0 0 14px var(--red);
+  animation: blink 1.2s steps(2, jump-none) infinite;
+}
+#conn.on .led {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--green) 55%);
+  box-shadow: 0 0 6px var(--green), 0 0 14px var(--green);
+}
+#ir.ok .led, #ir.down .led {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--c) 55%);
+  box-shadow: 0 0 6px var(--c), 0 0 14px var(--c), inset 0 -1px 1px rgba(0, 0, 0, .25);
+}
+#ir.ok { --c: var(--green); }
+#ir.down { --c: var(--red); }
+#ir.on { --c: var(--amber); }
+#ir .led { transition: background .5s, box-shadow .5s; }
+#ir.on .led { transition: none; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* display window */
+.display {
+  border-radius: 18px; padding: 14px 16px 16px;
+  background: linear-gradient(180deg, #060806, var(--lcd));
+  color: var(--lcd-ink);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, .9),
+    inset 0 0 0 1px rgba(255, 255, 255, .05),
+    0 1px 0 rgba(255, 255, 255, .7),
+    0 -1px 0 rgba(0, 0, 0, .2);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  display: grid; gap: 12px; align-content: center;
+}
+.readout { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.readout small { display: block; font-size: .62rem; letter-spacing: .18em; opacity: .65; margin-bottom: 4px; }
+#volText {
+  font-size: 2.6rem; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--lcd-ink) 70%, transparent);
+}
+#connText { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; text-align: right; color: var(--red); text-shadow: 0 0 8px currentColor; }
+#conn.on #connText { color: var(--green); }
+#volBar { display: flex; gap: 3px; height: 18px; }
+#volBar i { flex: 1; border-radius: 2px; background: var(--seg-off); transition: background .15s, box-shadow .15s; }
+#volBar i.lit { background: var(--c); box-shadow: 0 0 8px var(--c); }
+
+/* ---------- keys ---------- */
 button {
-  font: inherit; color: var(--text);
-  background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: 12px; min-height: 52px; padding: 0 12px;
+  --k1: var(--dark-1); --k2: var(--dark-2); --edge: var(--dark-edge); --ink: #f5f1e8;
+  font: inherit; font-weight: 700; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink); border: 0; cursor: pointer; touch-action: manipulation;
+  min-height: 54px; padding: 0 10px; border-radius: 14px;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  cursor: pointer; touch-action: manipulation;
-  transition: transform .08s, background .15s;
+  background: linear-gradient(180deg, var(--k1), var(--k2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .28),
+    inset 0 -2px 0 rgba(0, 0, 0, .22),
+    0 4px 0 var(--edge),
+    0 8px 10px rgba(0, 0, 0, .3);
+  transition: transform .06s, box-shadow .06s, filter .15s;
 }
-button:active { transform: scale(.96); }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; min-height: 60px; }
-button.danger { color: var(--bad); }
-svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+button:hover { filter: brightness(1.07); }
+button:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .18),
+    inset 0 2px 5px rgba(0, 0, 0, .3),
+    0 1px 0 var(--edge),
+    0 2px 3px rgba(0, 0, 0, .3);
+}
+button:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+button.light { --k1: var(--light-1); --k2: var(--light-2); --edge: var(--light-edge); --ink: #33302b; }
+button.orange { --k1: var(--orange-1); --k2: var(--orange-2); --edge: var(--orange-edge); --ink: #fff; }
+button.red { --k1: var(--red-1); --k2: var(--red-2); --edge: var(--red-edge); --ink: #fff; }
+button.round { border-radius: 50%; padding: 0; min-height: 0; aspect-ratio: 1; }
+svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 svg .fill { fill: currentColor; stroke: none; }
 
-.meter { height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; margin: 2px 0 12px; }
-.meter > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
-.meter-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); }
+/* transport */
+.transport { display: grid; grid-template-columns: 64px 104px 64px; justify-content: center; align-items: center; gap: 14px 22px; }
+.transport .print { text-align: center; white-space: nowrap; justify-self: center; }
+.transport .orange svg { width: 38px; height: 38px; }
 
-.note { font-size: .75rem; color: var(--muted); margin: 10px 0 0; }
-details { font-size: .85rem; color: var(--muted); }
+/* level rockers */
+.levels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.well {
+  display: grid; gap: 10px; padding: 10px 10px 14px; border-radius: 22px;
+  background: var(--well);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .3), 0 1px 0 rgba(255, 255, 255, .7);
+}
+.well .print { text-align: center; padding: 2px 0; }
+.well button { min-height: 62px; }
+
+/* input + system */
+.group { display: grid; gap: 12px; }
+.rule { display: flex; align-items: center; gap: 10px; }
+.rule::before, .rule::after { content: ""; flex: 1; height: 1px; background: rgba(0, 0, 0, .22); box-shadow: 0 1px 0 rgba(255, 255, 255, .6); }
+.keys { display: grid; gap: 12px; }
+.c2 { grid-template-columns: 1fr 1fr; }
+.c3 { grid-template-columns: repeat(3, 1fr); }
+.cell { display: grid; gap: 9px; justify-items: center; }
+.cell button { width: 100%; }
+.cell .led { --c: var(--blue); }
+
+/* ---------- below the remote ---------- */
+details { font-size: .85rem; padding: 0 8px; }
 details summary { cursor: pointer; padding: 4px 0; }
 details ul { margin: 8px 0 0; padding-left: 18px; }
 details li { margin-bottom: 6px; }
-footer { text-align: center; font-size: .72rem; color: var(--muted); padding: 4px 8px; }
+footer { text-align: center; font-size: .72rem; padding: 0 8px; }
 footer a { color: inherit; }
 
 #toast {
-  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom));
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 5;
   transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
-  background: var(--surface-2); border: 1px solid var(--border);
-  padding: 10px 16px; border-radius: 10px; font-size: .9rem;
+  background: #1c1b19; color: #f1ede4; border: 1px solid #3a3733;
+  padding: 10px 16px; border-radius: 12px; font-size: .9rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
   max-width: calc(100% - 32px); transition: opacity .2s, transform .2s;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
-#toast.err { border-color: var(--bad); color: var(--bad); }
+#toast.err { border-color: var(--red); color: var(--red); }
 
 dialog {
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 20px; width: min(340px, calc(100% - 32px));
+  color: #33302b; border: 0; border-radius: 24px; padding: 22px;
+  width: min(340px, calc(100% - 32px));
+  background: linear-gradient(175deg, var(--shell-1), var(--shell-2));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .75), 0 5px 0 #8f8878, 0 30px 60px rgba(0, 0, 0, .5);
 }
-dialog::backdrop { background: rgba(0, 0, 0, .55); }
-dialog p { margin: 0 0 16px; }
-dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+dialog p { margin: 0 0 18px; font-weight: 600; }
+dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 4px; }
+
+/* ---------- wide screens: hi-fi faceplate ---------- */
+@media (min-width: 960px) {
+  body { padding-left: 32px; padding-right: 32px; padding-top: 40px; }
+  main { max-width: 1240px; gap: 22px; }
+  .remote {
+    grid-template-columns: minmax(240px, 1.25fr) auto minmax(230px, 1fr) minmax(250px, 1.1fr);
+    grid-template-areas:
+      "brand brand brand brand"
+      "display transport levels input"
+      "display transport levels system";
+    gap: 22px 30px; padding: 26px 34px 34px; border-radius: 34px; align-items: center;
+  }
+  .display { align-self: stretch; padding: 22px; }
+  #volText { font-size: 3.6rem; }
+  #volBar { height: 24px; }
+  .transport { grid-template-columns: 68px 116px 68px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <h1>Z407 Remote</h1>
-    <span class="pill" id="conn"><span class="dot"></span><span id="connText">Connecting…</span></span>
-  </header>
+  <div class="remote">
+    <header class="brand">
+      <h1 class="logo"><b>Z407</b><span>Remote control</span></h1>
+      <span class="lamp" id="ir"><span class="print">Signal</span><span class="led"></span></span>
+    </header>
 
-  <section aria-label="Speakers">
-    <h2>Speakers</h2>
-    <div class="meter" role="img" aria-label="Estimated volume"><i id="volBar"></i></div>
-    <div class="meter-label"><span>Volume (estimated)</span><span id="volText">–</span></div>
-    <div class="row" style="margin-top:14px">
-      <button class="primary" data-cmd="play_pause">
-        <svg viewBox="0 0 24 24"><path class="fill" d="M7 5l9 7-9 7zM18 5v14h-2V5z" stroke="none"/></svg>
-        Play / Pause
-      </button>
-      <div class="row c3">
-        <button data-cmd="prev_speaker" aria-label="Previous track"><svg viewBox="0 0 24 24"><path class="fill" d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
-        <button data-cmd="vol_down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <section class="display" id="conn" aria-label="Status">
+      <div class="readout">
+        <div><small>VOLUME · EST.</small><span id="volText">--</span></div>
+        <span class="lamp"><span id="connText">Connecting…</span><span class="led"></span></span>
+      </div>
+      <div id="volBar" role="img" aria-label="Estimated volume"></div>
+    </section>
+
+    <section class="transport" aria-label="Playback">
+      <button class="round" data-cmd="prev_speaker" aria-label="Previous track"><svg viewBox="0 0 24 24"><path class="fill" d="M6 5h2.4v14H6zM20 5v14L9.5 12z"/></svg></button>
+      <button class="round orange" data-cmd="play_pause" aria-label="Play / Pause"><svg viewBox="0 0 24 24"><path class="fill" d="M4 5.5l8.5 6.5L4 18.5zM14.5 5.5H17v13h-2.5zM19 5.5h2.5v13H19z"/></svg></button>
+      <button class="round" data-cmd="next_speaker" aria-label="Next track"><svg viewBox="0 0 24 24"><path class="fill" d="M15.6 5H18v14h-2.4zM4 5v14l10.5-7z"/></svg></button>
+      <span class="print" aria-hidden="true">Prev</span>
+      <span class="print" aria-hidden="true">Play / Pause</span>
+      <span class="print" aria-hidden="true">Next</span>
+    </section>
+
+    <section class="levels" aria-label="Levels">
+      <div class="well" role="group" aria-label="Volume">
         <button data-cmd="vol_up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="print" aria-hidden="true">Volume</span>
+        <button data-cmd="vol_down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       </div>
-      <div class="row c3">
-        <button data-cmd="next_speaker" aria-label="Next track"><svg viewBox="0 0 24 24"><path class="fill" d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
-        <button data-cmd="bass_down">Bass −</button>
-        <button data-cmd="bass_up">Bass +</button>
+      <div class="well" role="group" aria-label="Bass">
+        <button data-cmd="bass_up" aria-label="Bass up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="print" aria-hidden="true">Bass</span>
+        <button data-cmd="bass_down" aria-label="Bass down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section aria-label="Input">
-    <h2>Input</h2>
-    <div class="row c3">
-      <button data-cmd="input_bluetooth">Bluetooth</button>
-      <button data-cmd="input_aux">AUX</button>
-      <button data-cmd="input_usb">USB</button>
-    </div>
-  </section>
+    <section class="group input" aria-label="Input">
+      <div class="rule"><span class="print">Input</span></div>
+      <div class="keys c3">
+        <div class="cell"><span class="led"></span><button class="light" data-cmd="input_bluetooth" data-input aria-label="Bluetooth input">BT</button></div>
+        <div class="cell"><span class="led"></span><button class="light" data-cmd="input_aux" data-input>AUX</button></div>
+        <div class="cell"><span class="led"></span><button class="light" data-cmd="input_usb" data-input>USB</button></div>
+      </div>
+    </section>
 
-  <section aria-label="Advanced">
-    <h2>Advanced</h2>
-    <div class="row c2">
-      <button data-cmd="bluetooth_pair" data-confirm="Put the speakers into pairing mode?">Pair</button>
-      <button class="danger" data-cmd="factory_reset" data-confirm="Factory reset the speakers? Paired devices will be erased.">Factory reset</button>
-    </div>
-  </section>
+    <section class="group system" aria-label="System">
+      <div class="rule"><span class="print">System</span></div>
+      <div class="keys c2">
+        <button class="light" data-cmd="bluetooth_pair" data-confirm="Put the speakers into pairing mode?">Pair</button>
+        <button class="red" data-cmd="factory_reset" data-confirm="Factory reset the speakers? Paired devices will be erased.">Reset</button>
+      </div>
+    </section>
+  </div>
 
-  <section aria-label="Help">
-    <details>
-      <summary>Troubleshooting</summary>
-      <ul>
-        <li>The speakers accept one Bluetooth LE controller at a time. If a phone is connected to them, disconnect it first.</li>
-        <li>Page not loading from your phone? Check the firewall and VPN settings on the computer running the app, and make sure both devices are on the same network.</li>
-        <li>Wrong address in the console? A VPN or virtual machine may be advertising a different network interface; try another address from the list.</li>
-      </ul>
-    </details>
-  </section>
+  <details>
+    <summary>Troubleshooting</summary>
+    <ul>
+      <li>The speakers accept one Bluetooth LE controller at a time. If a phone is connected to them, disconnect it first.</li>
+      <li>Page not loading from your phone? Check the firewall and VPN settings on the computer running the app, and make sure both devices are on the same network.</li>
+      <li>Wrong address in the console? A VPN or virtual machine may be advertising a different network interface; try another address from the list.</li>
+    </ul>
+  </details>
 
   <footer>
     Protocol research by <a href="https://github.com/freundTech/logi-z407-reverse-engineering" target="_blank" rel="noopener">freundTech</a>.
@@ -183,8 +327,8 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 <dialog id="confirm">
   <p id="confirmText"></p>
   <form method="dialog">
-    <button value="cancel">Cancel</button>
-    <button value="ok" class="primary">Confirm</button>
+    <button value="cancel" class="light">Cancel</button>
+    <button value="ok" class="orange">Confirm</button>
   </form>
 </dialog>
 
@@ -192,9 +336,23 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 (() => {
   const $ = (id) => document.getElementById(id);
   const conn = $('conn'), connText = $('connText');
-  const volBar = $('volBar'), volText = $('volText');
+  const volBar = $('volBar'), volText = $('volText'), ir = $('ir');
   const toast = $('toast'), dlg = $('confirm');
-  let toastTimer;
+  const SEGMENTS = 24;
+  let toastTimer, irTimer;
+
+  for (let i = 0; i < SEGMENTS; i++) {
+    const seg = document.createElement('i');
+    const pos = (i + 1) / SEGMENTS;
+    seg.style.setProperty('--c', pos > .85 ? 'var(--red)' : pos > .6 ? 'var(--amber)' : 'var(--green)');
+    volBar.appendChild(seg);
+  }
+
+  function showVolume(pct) {
+    const lit = Math.round(pct / 100 * SEGMENTS);
+    [...volBar.children].forEach((seg, i) => seg.classList.toggle('lit', i < lit));
+    volText.textContent = String(pct).padStart(2, '0');
+  }
 
   function say(msg, isErr) {
     toast.textContent = msg;
@@ -204,13 +362,34 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
   }
 
-  async function send(cmd) {
+  // Signal lamp: green while the app answers, red once it stops.
+  function api(up) {
+    ir.classList.toggle('ok', up);
+    ir.classList.toggle('down', !up);
+  }
+
+  function flash() {
+    ir.classList.add('on');
+    clearTimeout(irTimer);
+    irTimer = setTimeout(() => ir.classList.remove('on'), 600);
+  }
+
+  async function send(btn) {
+    const cmd = btn.dataset.cmd;
+    flash();
     try {
       const res = await fetch('/api/' + encodeURIComponent(cmd), { method: 'POST' });
       const data = await res.json().catch(() => ({}));
-      if (data.success) { say('Sent'); setTimeout(refresh, 400); }
-      else say(data.error || 'Request failed', true);
+      if (data.success) {
+        say('Sent');
+        if ('input' in btn.dataset) {
+          document.querySelectorAll('.cell .led').forEach((led) =>
+            led.classList.toggle('lit', led.parentElement === btn.parentElement));
+        }
+        setTimeout(refresh, 400);
+      } else say(data.error || 'Request failed', true);
     } catch {
+      api(false);
       say('Cannot reach the app', true);
     }
   }
@@ -218,13 +397,12 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   async function refresh() {
     try {
       const data = await (await fetch('/api/status')).json();
+      api(true);
       conn.classList.toggle('on', !!data.connected);
       connText.textContent = data.connected ? 'Connected' : 'Not connected';
-      if (typeof data.volume === 'number') {
-        volBar.style.width = data.volume + '%';
-        volText.textContent = data.volume + '%';
-      }
+      if (typeof data.volume === 'number') showVolume(data.volume);
     } catch {
+      api(false);
       conn.classList.remove('on');
       connText.textContent = 'App unreachable';
     }
@@ -233,14 +411,13 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-cmd]');
     if (!btn) return;
-    const cmd = btn.dataset.cmd;
     if (btn.dataset.confirm) {
       $('confirmText').textContent = btn.dataset.confirm;
       dlg.returnValue = '';
-      dlg.onclose = () => { if (dlg.returnValue === 'ok') send(cmd); };
+      dlg.onclose = () => { if (dlg.returnValue === 'ok') send(btn); };
       dlg.showModal();
     } else {
-      send(cmd);
+      send(btn);
     }
   });
 
