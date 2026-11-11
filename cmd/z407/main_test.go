@@ -297,3 +297,32 @@ func TestWebURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestLogMode(t *testing.T) {
+	for _, c := range []struct {
+		args string
+		want string
+	}{
+		{"", ""},
+		{"--port 5001", ""},
+		{"--log file", "file"},
+		{"-log=terminal", "terminal"},
+		{"--port 5001 --log=file --no-window", "file"},
+		{"--log file --log terminal", "terminal"},
+		{"--log nonsense", ""},
+		{"--log", ""},
+		{"--peers log --port 1", ""},
+		{"-- --log file", ""},
+	} {
+		if got := logMode(strings.Fields(c.args)); got != c.want {
+			t.Errorf("%q: got %q, want %q", c.args, got, c.want)
+		}
+	}
+}
+
+func TestLogFlagRejectsUnknownValue(t *testing.T) {
+	err := runWith(context.Background(), []string{"--log", "nonsense"}, io.Discard, deps{})
+	if err == nil || !strings.Contains(err.Error(), "--log") {
+		t.Fatalf("got %v", err)
+	}
+}

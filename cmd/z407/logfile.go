@@ -8,10 +8,10 @@ import (
 // maxLogSize is the size at which the log file starts over.
 const maxLogSize = 1 << 20
 
-// logFilePath is where the Windows build without a console writes its log:
-// %LOCALAPPDATA%\z407\z407.log, or the temporary directory as a last resort.
-func logFilePath(localAppData, tempDir string) string {
-	base := localAppData
+// logFilePath is where the log file lives: z407/z407.log in the user's
+// cache directory, or in the temporary directory as a last resort.
+func logFilePath(cacheDir, tempDir string) string {
+	base := cacheDir
 	if base == "" {
 		base = tempDir
 	}

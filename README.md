@@ -42,6 +42,7 @@ While the window is open, other devices on the same network can use the remote t
 - The window is an "app" window of Edge, Chrome, Chromium or Brave, whichever is installed. It uses its own browser profile (in your cache directory, under `z407`), so it does not touch your normal browser.
 - If none of these browsers is installed, the remote opens as a tab in your default browser, and the app stops a few seconds after you close the last tab showing it on that computer. Reloading the tab is fine. Tabs on other devices never keep the app running and never stop it. Browsers that discard background tabs to save memory can stop the app this way; use `--no-window` if that bothers you.
 - `z407 --no-window` opens nothing and runs until you press Ctrl+C. Use this on a machine without a screen. On Linux this is also what happens when there is no graphical session.
+- `z407 --log file` writes the output to a log file instead of the terminal (`~/.cache/z407/z407.log` on Linux, `~/Library/Caches/z407/z407.log` on macOS, `%LOCALAPPDATA%\z407\z407.log` on Windows); `--log terminal` is the default everywhere except in the [Windows](#windows) GUI build.
 - Ctrl+C in the terminal stops the app in every mode and closes the window (except for the Windows GUI build, which is not attached to the terminal: close its window instead).
 
 ### Options
@@ -69,9 +70,9 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 
 ### Windows
 
-`z407.exe` is a GUI program: it opens no console window and prints nothing in the terminal it was started from. It writes its log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box. The address for other devices is shown below the remote, under "Web address".
+`z407.exe` is a GUI program: it opens no console window and by default prints nothing in the terminal it was started from. It writes its log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box. The address for other devices is shown below the remote, under "Web address".
 
-To see the log live, pipe the output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL), or build a console program with `make windows-amd64 WINDOWS_CONSOLE=1`.
+To see the log live, pipe the output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL), or build a console program with `make windows-amd64 WINDOWS_CONSOLE=1`. `z407.exe --log terminal` also writes to the terminal it was started from, with two limits that come from being a GUI program: the shell does not wait for it, so the output appears over the next prompt, and under WSL the output is garbled (use the pipe there).
 
 ## Android app
 

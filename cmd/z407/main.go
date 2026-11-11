@@ -67,11 +67,16 @@ type deps struct {
 }
 
 func main() {
-	setupOutput()
+	term := os.Stdout
+	setupOutput(logMode(os.Args[1:]))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:], os.Stdout); err != nil {
-		failExit(err, os.Stdout, os.Stdin, runtime.GOOS, isTerminal(os.Stdin))
+		failExit(err, os.Stdout, os.Stdin, runtime.GOOS, isTerminal(os.Stdin) && os.Stdout == term)
+		if os.Stdout != term {
+			// Logging elsewhere: tell the terminal too, if there is one.
+			fmt.Fprintln(term, errorBanner(err))
+		}
 		alertFailure(err)
 		os.Exit(1)
 	}
@@ -117,11 +122,16 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	noWindow := fs.Bool("no-window", false, "Do not open the remote in a window; run until interrupted (Ctrl+C)")
 	peerList := fs.String("peers", "", "Other computers running this app, as host or host:port, comma-separated.\n"+
 		"Replaces the list saved from the remote's page for this run")
+	logTo := fs.String("log", "", "Where the output goes: \"terminal\" or \"file\" ("+logPath()+").\n"+
+		"Default: terminal; the Windows GUI build, which has no terminal: file")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
+	}
+	if *logTo != "" && *logTo != logTerminal && *logTo != logFile {
+		return fmt.Errorf("--log: %q is not %q or %q", *logTo, logTerminal, logFile)
 	}
 	lg := d.log
 	if lg == nil {
