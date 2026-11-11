@@ -1,6 +1,12 @@
 // Command z407 serves a web remote control for the Logitech Z407 speakers.
 package main
 
+// The Windows program gets its icon from rsrc_windows_amd64.syso, a resource
+// file the linker picks up by its name. It is built from z407.ico, which
+// internal/server/icongen.go draws.
+//
+//go:generate go run github.com/akavel/rsrc@v0.10.2 -ico z407.ico -arch amd64 -o rsrc_windows_amd64.syso
+
 import (
 	"bufio"
 	"context"

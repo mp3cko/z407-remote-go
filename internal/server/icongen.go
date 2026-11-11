@@ -1,11 +1,15 @@
 //go:build ignore
 
-// Command icongen draws the app icons in static/ from the same shapes as the
-// favicon in index.html (an orange tile with a white speaker). Run it with
-// "go generate ./internal/server" after changing the design.
+// Command icongen draws the app icons from the same shapes as the favicon in
+// index.html (an orange tile with a white speaker): the web app icons in
+// static/ and the icon of the Windows program, cmd/z407/z407.ico. Run it
+// with "go generate ./..." after changing the design; that also rebuilds
+// the Windows resource file from the new .ico (see cmd/z407/main.go).
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
@@ -84,7 +88,37 @@ func draw(size int, rounded bool) image.Image {
 	return img
 }
 
+// writeICO writes a Windows icon holding one PNG image per size.
+func writeICO(name string, sizes []int) error {
+	var images [][]byte
+	for _, size := range sizes {
+		var b bytes.Buffer
+		if err := (&png.Encoder{CompressionLevel: png.BestCompression}).Encode(&b, draw(size, true)); err != nil {
+			return err
+		}
+		images = append(images, b.Bytes())
+	}
+	var out bytes.Buffer
+	le := func(v any) { _ = binary.Write(&out, binary.LittleEndian, v) }
+	le([]uint16{0, 1, uint16(len(sizes))}) // reserved, type 1 = icon, count
+	offset := uint32(6 + 16*len(sizes))
+	for i, size := range sizes {
+		// width and height (0 means 256), palette size, reserved
+		le([]uint8{uint8(size), uint8(size), 0, 0})
+		le([]uint16{1, 32}) // color planes, bits per pixel
+		le([]uint32{uint32(len(images[i])), offset})
+		offset += uint32(len(images[i]))
+	}
+	for _, img := range images {
+		out.Write(img)
+	}
+	return os.WriteFile(name, out.Bytes(), 0o644)
+}
+
 func main() {
+	if err := writeICO("../../cmd/z407/z407.ico", []int{16, 24, 32, 48, 64, 256}); err != nil {
+		log.Fatal(err)
+	}
 	for _, ic := range []struct {
 		name    string
 		size    int
