@@ -1,6 +1,6 @@
 # Z407 Remote
 
-A small remote for the Logitech Z407 speakers. It runs on a computer with Bluetooth, talks to the speakers over Bluetooth Low Energy, shows the remote in its own window, and serves the same page to any phone or tablet on the same network.
+A small remote for the Logitech Z407 speakers. It runs on a computer with Bluetooth, talks to the speakers over Bluetooth Low Energy, shows the remote in its own window, and serves the same page to any phone or tablet on the same network. There is also an [Android app](#android-app) that controls the speakers directly, without a computer.
 
 ## Features
 
@@ -8,6 +8,7 @@ A small remote for the Logitech Z407 speakers. It runs on a computer with Blueto
 - Input selection (Bluetooth, AUX, USB), pairing and factory reset
 - Opens as an app window on the computer; phones on the network can add it to their home screen
 - Single static binary for Windows, Linux and macOS
+- Android app with the same remote, talking to the speakers directly
 
 ## Install
 
@@ -69,6 +70,49 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 ### Windows
 
 `z407.exe` opens no console window. Started from a terminal it prints its log there; started by double-click it writes the log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box.
+
+## Android app
+
+The Android app shows the same remote and talks to the speakers itself over Bluetooth LE. No computer is involved. It needs Android 8.0 or newer.
+
+Install: download `z407_vX.Y.Z_android.apk` from the [releases page](https://github.com/mp3cko/z407-remote-go/releases) on the phone and open it (Android asks you to allow installing from that source), or from a computer with the phone attached: `adb install z407_vX.Y.Z_android.apk`.
+
+Good to know:
+
+- On first start the app asks for the "Nearby devices" permission (Android 12 and newer) or the Location permission (Android 8 to 11, where Bluetooth scans require it and Location must be switched on). The app does not use your position.
+- The app holds the speakers only while it is on screen. When you leave it, it disconnects, so that other controllers can connect.
+- If a computer running the desktop app holds the speakers, the phone cannot connect. Open "Other computers" in the app and enter that computer's address: after 10 seconds of searching, the app asks it to close its copy (see [Several computers](#several-computers)) and then connects. Each computer is asked once each time the app comes to the screen. The phone and the computer must be on the same network for this. Nothing can close the phone app remotely.
+
+### Building it
+
+You need JDK 17 and the Android SDK (platform 35 and build-tools 35.0.0; the command line tools are enough). Point `ANDROID_HOME` at the SDK, or write its path to `android/local.properties` as `sdk.dir=/path/to/sdk`.
+
+```bash
+cd android
+./gradlew test            # unit tests of the protocol, state machine and API (no phone needed)
+./gradlew assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+The app has no copy of the remote's page: the build takes `internal/server/index.html` from this repository. `./gradlew assembleRelease -PversionName=1.2.3` builds a release APK; it is signed with the key named by the environment variables `Z407_KEYSTORE_FILE`, `Z407_KEYSTORE_PASSWORD`, `Z407_KEY_ALIAS` and `Z407_KEY_PASSWORD`, or with the debug key when they are not set. The release workflow reads the key from the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
+
+### Manual test checklist
+
+The Bluetooth side cannot be tested automatically. With a phone and the speakers:
+
+1. Fresh install, first start: the permission prompt appears. Refuse it: a dialog explains what will not work and offers to ask again. Grant it.
+2. With Bluetooth switched off, start the app: it offers to switch Bluetooth on.
+3. Speakers on, nothing else connected to their control channel: within about 15 seconds the display shows "Connected" and the Signal lamp is green.
+4. Volume up and down: the speakers react and the volume estimate moves in steps of 5. Bass up and down, play/pause, next, previous: the speakers react.
+5. BT, AUX, USB: the speakers switch input and the lamp above the pressed key lights.
+6. Pair: after confirming, the speakers enter pairing mode. (Reset erases the speakers' pairings; test it only if you mean to.)
+7. Leave the app open for five minutes: it stays connected (keep-alives are answered).
+8. Switch the speakers off: the display shows "Not connected". Switch them on: the app reconnects by itself.
+9. Press Home, then check that another controller (for example the desktop app) can now connect. Return to the app after closing the other controller: it reconnects.
+10. Rotate the phone and switch the system between light and dark: the remote follows, and the connection survives the rotation.
+11. Takeover: run the desktop app on a computer so that it is connected. On the phone enter the computer's address under "Other computers" and save; an invalid entry such as `http://x` is refused with a message. About 10 seconds after the app started searching (at once, if it has searched longer already) the desktop app closes, and shortly after the phone shows "Connected".
+12. Start the desktop app again, wait until it is connected, then bring the phone app back to the screen: it takes the speakers over again.
+13. Close the phone app completely and reopen it: the saved list is still there.
 
 ## Troubleshooting
 
