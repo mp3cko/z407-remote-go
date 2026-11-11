@@ -61,6 +61,11 @@ func WithPeers(p *peers.Store) Option { return func(s *srv) { s.peers = p } }
 // WithShutdown enables POST /api/shutdown: fn must make the app stop.
 func WithShutdown(fn func()) Option { return func(s *srv) { s.shutdown = fn } }
 
+// WithAddrs sets the function listing the addresses the remote can be
+// opened at from other devices ("http://192.168.1.20:5000"), best guess
+// first. The page shows them (default: none).
+func WithAddrs(fn func() []string) Option { return func(s *srv) { s.addrs = fn } }
+
 type srv struct {
 	sp       Speaker
 	log      *logx.Logger
@@ -68,6 +73,7 @@ type srv struct {
 	presence *Presence
 	peers    *peers.Store
 	shutdown func()
+	addrs    func() []string
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
@@ -99,6 +105,7 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	mux.HandleFunc("GET /{file}", s.staticFile)
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/status", s.status)
+	mux.HandleFunc("GET /api/addrs", s.listAddrs)
 	mux.HandleFunc("GET /api/peers", s.listPeers)
 	mux.HandleFunc("POST /api/peers", s.savePeers)
 	mux.HandleFunc("POST /api/shutdown", s.shutdownApp)
@@ -158,6 +165,14 @@ func (s *srv) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (s *srv) listAddrs(w http.ResponseWriter, _ *http.Request) {
+	urls := []string{}
+	if s.addrs != nil {
+		urls = append(urls, s.addrs()...)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"urls": urls})
 }
 
 func (s *srv) listPeers(w http.ResponseWriter, _ *http.Request) {

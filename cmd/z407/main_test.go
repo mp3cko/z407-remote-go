@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -275,5 +276,24 @@ func TestPortHint(t *testing.T) {
 	}
 	if strings.Contains(errorBanner(errors.New("other")), "--port 5001") {
 		t.Error("hint shown for unrelated error")
+	}
+}
+
+func TestWebURLs(t *testing.T) {
+	addrs := []hostAddr{{"wifi", "192.168.1.101"}, {"vpn", "10.5.0.2"}}
+	for _, c := range []struct {
+		host string
+		want []string
+	}{
+		{"0.0.0.0", []string{"http://192.168.1.101:5000", "http://10.5.0.2:5000"}},
+		{"::", []string{"http://192.168.1.101:5000", "http://10.5.0.2:5000"}},
+		{"", []string{"http://192.168.1.101:5000", "http://10.5.0.2:5000"}},
+		{"192.168.1.7", []string{"http://192.168.1.7:5000"}},
+		{"::1", []string{"http://[::1]:5000"}},
+		{"desk.local", []string{"http://desk.local:5000"}},
+	} {
+		if got := webURLs(addrs, 5000, c.host); !slices.Equal(got, c.want) {
+			t.Errorf("host %q: got %v, want %v", c.host, got, c.want)
+		}
 	}
 }

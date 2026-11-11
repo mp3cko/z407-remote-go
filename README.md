@@ -23,7 +23,7 @@ make windows-amd64  # a single target, e.g. dist/z407_windows_amd64.exe
 make test
 ```
 
-`make help` lists all targets. Windows binaries are built as GUI programs (`-H=windowsgui`), so no console window opens; `make windows-amd64 WINDOWS_CONSOLE=1` builds a console program instead. The macOS targets (`darwin-arm64`, `darwin-amd64`) only work on a Mac, because the Bluetooth backend needs cgo.
+`make help` lists all targets. Windows binaries are built as GUI programs (`-H=windowsgui`), so no console window opens and the log goes to a file; `make windows-amd64 WINDOWS_CONSOLE=1` builds a console program that logs to the terminal instead. The macOS targets (`darwin-arm64`, `darwin-amd64`) only work on a Mac, because the Bluetooth backend needs cgo.
 
 ### Platform notes
 
@@ -35,14 +35,14 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address the app prints (for example `http://192.168.1.50:5000`) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, and can also close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
+While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, and can also close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
 
 ### The window
 
 - The window is an "app" window of Edge, Chrome, Chromium or Brave, whichever is installed. It uses its own browser profile (in your cache directory, under `z407`), so it does not touch your normal browser.
 - If none of these browsers is installed, the remote opens as a tab in your default browser, and the app stops a few seconds after you close the last tab showing it on that computer. Reloading the tab is fine. Tabs on other devices never keep the app running and never stop it. Browsers that discard background tabs to save memory can stop the app this way; use `--no-window` if that bothers you.
 - `z407 --no-window` opens nothing and runs until you press Ctrl+C. Use this on a machine without a screen. On Linux this is also what happens when there is no graphical session.
-- Ctrl+C in the terminal stops the app in every mode and closes the window.
+- Ctrl+C in the terminal stops the app in every mode and closes the window (except for the Windows GUI build, which is not attached to the terminal: close its window instead).
 
 ### Options
 
@@ -69,7 +69,9 @@ Open the address in the phone's browser and choose "Add to Home screen" from the
 
 ### Windows
 
-`z407.exe` opens no console window. Started from a terminal it prints its log there; started by double-click it writes the log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box.
+`z407.exe` is a GUI program: it opens no console window and prints nothing in the terminal it was started from. It writes its log to `%LOCALAPPDATA%\z407\z407.log`, and a startup problem (for example the port being in use) is shown in a message box. The address for other devices is shown below the remote, under "Web address".
+
+To see the log live, pipe the output (`.\z407.exe | Out-Host` in PowerShell, `z407.exe | cat` in WSL), or build a console program with `make windows-amd64 WINDOWS_CONSOLE=1`.
 
 ## Android app
 
@@ -120,8 +122,8 @@ The Bluetooth side cannot be tested automatically. With a phone and the speakers
 
 - The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-computers) if another computer runs this app.
 - If your phone cannot load the page, check the firewall on the computer, and if you use a VPN enable "Allow LAN access" or split tunneling.
-- The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open the printed address in any browser.
-- On Windows, when started from a terminal, clicking inside the terminal can pause the program; press Enter to resume it.
+- The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open `http://127.0.0.1:5000` in any browser.
+- On Windows, with a console build, clicking inside the terminal can pause the program; press Enter to resume it.
 - If connecting keeps failing, try in order: power-cycle the speakers, toggle Bluetooth on the computer, unpair and re-pair the speakers, restart the computer.
 
 ## Acknowledgements

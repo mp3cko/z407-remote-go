@@ -15,6 +15,7 @@
   --page: #151413;
   --page-glow: #2a2623;
   --page-text: #a39c90;
+  --link: #ffb648;
   /* remote shell */
   --shell-1: #efe9dc;
   --shell-2: #d9d2c2;
@@ -44,7 +45,7 @@
   --blue: #4aa8ff;
 }
 @media (prefers-color-scheme: light) {
-  :root { --page: #e9e6e0; --page-glow: #f7f5f1; --page-text: #6b665d; }
+  :root { --page: #e9e6e0; --page-glow: #f7f5f1; --page-text: #6b665d; --link: #b4470f; }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -214,12 +215,39 @@ svg .fill { fill: currentColor; stroke: none; }
 .cell .led { --c: var(--blue); }
 
 /* ---------- below the remote ---------- */
-details { font-size: .85rem; padding: 0 8px; }
-details summary { cursor: pointer; padding: 4px 0; }
-details ul { margin: 8px 0 0; padding-left: 18px; }
+.panel {
+  width: 100%; max-width: 460px; margin: 0 auto; border-radius: 22px; overflow: hidden; font-size: .85rem;
+  background: rgba(128, 128, 128, .1); border: 1px solid rgba(128, 128, 128, .22);
+}
+.panel > :not([hidden]) + * { border-top: 1px solid rgba(128, 128, 128, .22); }
+.panel .print { color: inherit; }
+#web { padding: 14px 16px 12px; }
+#web p { margin: 4px 0 8px; }
+#webList { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#webList li { display: flex; align-items: center; gap: 10px; }
+#webList a {
+  flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--link); text-decoration: none;
+  font: 600 .95rem ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  -webkit-user-select: text; user-select: text;
+}
+#webList a:hover { text-decoration: underline; }
+#webList button { min-height: 36px; padding: 0 14px; font-size: .7rem; border-radius: 10px; }
+details summary {
+  cursor: pointer; padding: 13px 16px; list-style: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::after {
+  content: ""; width: 7px; height: 7px; flex: none; margin-right: 3px;
+  border-right: 2px solid; border-bottom: 2px solid; transform: rotate(45deg) translate(-2px, -2px); transition: transform .2s;
+}
+details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+details summary:focus-visible, #webList a:focus-visible { outline: 3px solid var(--blue); outline-offset: -3px; border-radius: 8px; }
+details > :not(summary) { margin-left: 16px; margin-right: 16px; }
+details ul { margin-top: 0; margin-bottom: 12px; padding-left: 18px; }
 details li { margin-bottom: 6px; }
-details p { margin: 8px 0; }
-#peersForm { display: flex; gap: 10px; align-items: center; margin: 10px 0 8px; }
+details p { margin-top: 0; margin-bottom: 8px; }
+#peersForm { display: flex; gap: 10px; align-items: center; margin: 10px 16px 8px; }
 #peersInput {
   flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
   font: inherit; color: inherit; background: rgba(128, 128, 128, .12);
@@ -326,12 +354,19 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     </section>
   </div>
 
+  <section class="panel" aria-label="More">
+  <div id="web" hidden>
+    <span class="print">Web address</span>
+    <p>Open the remote in a browser on any phone, tablet or computer on the same network:</p>
+    <ul id="webList"></ul>
+  </div>
+
   <details>
     <summary>Troubleshooting</summary>
     <ul>
       <li>The speakers accept one Bluetooth LE controller at a time. If a phone is connected to them, disconnect it first.</li>
       <li>Page not loading from your phone? Check the firewall and VPN settings on the computer running the app, and make sure both devices are on the same network.</li>
-      <li>Wrong address in the console? A VPN or virtual machine may be advertising a different network interface; try another address from the list.</li>
+      <li>Web address not working? A VPN or virtual machine may be advertising a different network interface; try another address from the list.</li>
     </ul>
   </details>
 
@@ -345,6 +380,7 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     </form>
     <p id="peersMsg" role="status" aria-live="polite"></p>
   </details>
+  </section>
 
   <footer>
     Protocol research by <a href="https://github.com/freundTech/logi-z407-reverse-engineering" target="_blank" rel="noopener">freundTech</a>.
@@ -484,8 +520,48 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     }
   });
 
+  // "Web address": where other devices can open this remote. The Android
+  // app serves no page, answers with an empty list, and the block stays hidden.
+  async function copy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch { // no clipboard API on a plain-http LAN address
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (!ok) throw new Error('copy failed');
+    }
+  }
+
+  async function loadAddrs() {
+    try {
+      const res = await fetch('/api/addrs');
+      const urls = res.ok ? (await res.json()).urls || [] : [];
+      const list = $('webList');
+      list.replaceChildren(...urls.map((url) => {
+        const li = document.createElement('li'), a = document.createElement('a'), btn = document.createElement('button');
+        a.href = a.textContent = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        btn.className = 'light';
+        btn.type = 'button';
+        btn.textContent = 'Copy';
+        btn.setAttribute('aria-label', 'Copy ' + url);
+        btn.onclick = () => copy(url).then(() => say('Copied'), () => say('Could not copy', true));
+        li.append(a, btn);
+        return li;
+      }));
+      $('web').hidden = !urls.length;
+    } catch { /* the block stays hidden */ }
+  }
+
   refresh();
   loadPeers();
+  loadAddrs();
   setInterval(refresh, 5000);
 
   // Held open so the app knows this page exists: when the remote runs in a

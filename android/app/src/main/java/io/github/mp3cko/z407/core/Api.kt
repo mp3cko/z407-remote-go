@@ -43,7 +43,9 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
                 "POST" -> savePeers(list ?: "")
                 else -> methodNotAllowed()
             }
-            // The phone runs no server, so the page's event stream has no meaning here...
+            // The phone runs no server: there is no address to open the remote at...
+            "addrs" -> if (method == "GET") json(200, "urls" to emptyList<String>()) else methodNotAllowed()
+            // ...the page's event stream has no meaning here...
             "events" -> if (method == "GET") notFound() else methodNotAllowed()
             // ...and nothing can shut the phone down remotely.
             "shutdown" -> if (method == "POST") {

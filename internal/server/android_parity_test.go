@@ -34,6 +34,7 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		{"unknown command", connected, "POST", "/api/bogus", 400, `{"error":"Unknown command","success":false}`},
 		{"speaker error", func() *fakeSpeaker { return failing }, "POST", "/api/vol_up", 500,
 			`{"error":"write 8002: boom","success":false}`},
+		{"no addresses", connected, "GET", "/api/addrs", 200, `{"urls":[]}`},
 		{"no peers", connected, "GET", "/api/peers", 200, `{"fixed":false,"peers":[]}`},
 		{"save peers", connected, "POST", "/api/peers?list=" + q("desk, 192.168.1.20:5001"), 200,
 			`{"peers":["desk:5000","192.168.1.20:5001"],"success":true}`},

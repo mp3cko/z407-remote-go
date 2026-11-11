@@ -118,6 +118,12 @@ class ApiTest {
     }
 
     @Test
+    fun thePhoneHasNoWebAddress() {
+        check(connectedApi().handle("GET", "/api/addrs", null), 200, "{\"urls\":[]}\n")
+        assertEquals(405, connectedApi().handle("POST", "/api/addrs", null).status)
+    }
+
+    @Test
     fun otherRequests() {
         val api = connectedApi()
         assertEquals(404, api.handle("GET", "/api/events", null).status) // no event stream: the page copes

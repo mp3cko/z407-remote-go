@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mp3cko/z407-remote-go/internal/logx"
@@ -97,6 +98,19 @@ func systemIfaces() []ifaceAddrs {
 		out = append(out, ia)
 	}
 	return out
+}
+
+// webURLs lists the addresses the remote is served at, best guess first:
+// the bound host, or every LAN address when bound to all interfaces.
+func webURLs(addrs []hostAddr, port int, host string) []string {
+	if ip := net.ParseIP(host); host != "" && (ip == nil || !ip.IsUnspecified()) {
+		addrs = []hostAddr{{IP: host}}
+	}
+	urls := make([]string, len(addrs))
+	for i, a := range addrs {
+		urls[i] = "http://" + net.JoinHostPort(a.IP, strconv.Itoa(port))
+	}
+	return urls
 }
 
 // urlLines renders one "👉 http://ip:port (iface)" line per address.

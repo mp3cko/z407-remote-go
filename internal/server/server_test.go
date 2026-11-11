@@ -231,3 +231,13 @@ func TestAccessLog(t *testing.T) {
 		t.Errorf("status poll should not be logged: %q", out)
 	}
 }
+
+func TestAddrs(t *testing.T) {
+	if rec := do(New(&fakeSpeaker{}, quiet), "GET", "/api/addrs"); rec.Code != 200 || rec.Body.String() != `{"urls":[]}`+"\n" {
+		t.Errorf("no addresses: %d %s", rec.Code, rec.Body)
+	}
+	h := New(&fakeSpeaker{}, quiet, WithAddrs(func() []string { return []string{"http://192.168.1.20:5000", "http://10.0.0.2:5000"} }))
+	if rec := do(h, "GET", "/api/addrs"); rec.Code != 200 || rec.Body.String() != `{"urls":["http://192.168.1.20:5000","http://10.0.0.2:5000"]}`+"\n" {
+		t.Errorf("addresses: %d %s", rec.Code, rec.Body)
+	}
+}

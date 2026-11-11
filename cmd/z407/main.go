@@ -152,6 +152,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		cancelBg()
 	})
 	handler := server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence), server.WithPeers(store),
+		server.WithAddrs(func() []string { return webURLs(d.addrs(), actualPort, *ip) }),
 		server.WithShutdown(func() {
 			lg.Infof("Shutdown requested over the network (another computer takes over the speakers), stopping")
 			cancelBg()
