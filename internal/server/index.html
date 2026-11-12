@@ -604,7 +604,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     <h2 id="devTitle" class="print">Other devices</h2>
     <button id="devClose" class="light" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
-  <p>The speakers obey one controller at a time. When this app cannot find them, it asks the computers and phones listed here to let go of them.</p>
+  <p>The speakers obey one controller at a time: a device running the Z407 Remote app. Phones and computers that only open this remote in a browser go through this device's connection, so they never take the speakers away and need no entry here.</p>
+  <p>List the other devices that run the app themselves. When this app cannot find the speakers, it asks them to let go.</p>
   <ul id="devList" aria-label="Other devices"></ul>
   <form id="devForm">
     <input id="devInput" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done"
