@@ -29,7 +29,8 @@ help:
 	@echo "make cross      Linux (amd64, arm64) + Windows  (+ macOS when run on a Mac)"
 	@echo "make <target>   one of: $(PORTABLE) $(MACOS)"
 	@echo "make macos-app  on a Mac: the program as an app with its icon -> dist/Z407 Remote.app"
-	@echo "make android    Android app: unit tests + debug APK      -> dist/z407_android_debug.apk"
+	@echo "make android    Android app: unit tests, debug and release APK"
+	@echo "                -> dist/z407_android_debug.apk, dist/z407_android.apk"
 	@echo "                (needs JDK 17 and the Android SDK, see README)"
 	@echo "make test | vet | fmt | clean"
 
@@ -70,10 +71,17 @@ ifneq ($(HOST_OS),darwin)
 endif
 	packaging/macos-app.sh dist/z407 dist
 
+# The release APK takes its version from the latest tag (v0.1.3, or
+# v0.1.3-2-gabc1234 after it) and is signed with the key the Z407_KEYSTORE_*
+# variables name, or with the debug key when they are not set (see README).
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo 0.0.0-dev)
+
 android:
-	cd android && ./gradlew --no-daemon test assembleDebug
+	cd android && ./gradlew --no-daemon test assembleDebug assembleRelease -PversionName=$(VERSION)
 	mkdir -p dist
 	cp android/app/build/outputs/apk/debug/app-debug.apk dist/z407_android_debug.apk
+	cp android/app/build/outputs/apk/release/app-release.apk dist/z407_android.apk
+	@if [ -z "$$Z407_KEYSTORE_FILE" ]; then echo "note: Z407_KEYSTORE_FILE is not set, so dist/z407_android.apk is signed with the debug key"; fi
 
 test:
 	$(GO) test -race -cover ./...

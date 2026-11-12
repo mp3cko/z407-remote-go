@@ -137,7 +137,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`make android` in the repository root runs the first two steps and copies the APK to `dist/z407_android_debug.apk`.
+`make android` in the repository root runs the tests and builds both APKs: the debug one as `dist/z407_android_debug.apk` and the release one, versioned after the latest tag, as `dist/z407_android.apk`.
 
 The app has no copy of the remote's page: the build takes `internal/server/index.html` from this repository. `./gradlew assembleRelease -PversionName=1.2.3` builds a release APK, minified with R8 (about a tenth of the size of the debug build); it is signed with the key named by the environment variables `Z407_KEYSTORE_FILE`, `Z407_KEYSTORE_PASSWORD`, `Z407_KEY_ALIAS` and `Z407_KEY_PASSWORD`, or with the debug key when they are not set. The release workflow reads the key from the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
 
