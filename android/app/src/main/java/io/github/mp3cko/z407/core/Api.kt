@@ -9,8 +9,10 @@ data class ApiResponse(val status: Int, val reason: String, val body: String) {
 
 /**
  * Answers the page's /api requests exactly like internal/server/server.go,
- * so the page needs no Android-specific code. Only method, path and query
- * string are used: a WebView cannot read the body of a request it intercepts.
+ * so the page needs no Android-specific code. It answers the page inside the
+ * app and, through [HttpServer], callers on the network alike. Only method,
+ * path and query string are used: a WebView cannot read the body of a
+ * request it intercepts.
  */
 class Api(
     private val speaker: SpeakerManager,
@@ -19,6 +21,14 @@ class Api(
     private val notice: () -> String = { "" },
     /** What the log viewer shows; null = nothing. */
     private val history: LogHistory? = null,
+    /** Where other devices can open the remote ("http://192.168.1.30:5000"); none while no server runs. */
+    private val addrs: () -> List<String> = { emptyList() },
+    /** Another device asks for the speakers (POST /api/disconnect): lets go of them until [reconnect]. */
+    private val disconnect: () -> Unit = {},
+    /** The user takes the speakers back (POST /api/reconnect). */
+    private val reconnect: () -> Unit = {},
+    /** Whether the speakers were let go of and not taken back yet. */
+    private val released: () -> Boolean = { false },
 ) {
     companion object {
         const val NOT_CONNECTED = "Speakers not connected. Waiting for background connection..."
@@ -54,13 +64,13 @@ class Api(
                 else -> methodNotAllowed()
             }
             "log" -> if (method == "GET") logLines(after) else methodNotAllowed()
-            // The phone runs no server: there is no address to open the remote at...
-            "addrs" -> if (method == "GET") json(200, "urls" to emptyList<String>()) else methodNotAllowed()
-            // ...the page's event stream has no meaning here...
+            "addrs" -> if (method == "GET") json(200, "urls" to addrs()) else methodNotAllowed()
+            // The page's event stream has no meaning here.
             "events" -> if (method == "GET") notFound() else methodNotAllowed()
-            // ...and nothing can shut the phone down remotely.
-            "shutdown" -> if (method == "POST") {
-                json(501, "error" to "Shutdown is not available", "success" to false)
+            // Another device asks for the speakers; the page then offers to reconnect.
+            "disconnect", "reconnect" -> if (method == "POST") {
+                if (name == "disconnect") disconnect() else reconnect()
+                json(200, "success" to true)
             } else methodNotAllowed()
             else -> if (method == "POST") command(name) else methodNotAllowed()
         }
@@ -68,6 +78,9 @@ class Api(
 
     private fun status(): ApiResponse {
         val s = speaker.status()
+        if (released()) {
+            return json(200, "connected" to false, "note" to notice(), "phase" to "released", "problem" to "", "volume" to s.volume)
+        }
         val phase = when {
             s.connected -> "connected"
             s.phase.isEmpty() -> "waiting" // for the next attempt
@@ -87,7 +100,7 @@ class Api(
     }
 
     private fun command(name: String): ApiResponse {
-        if (!speaker.status().connected) return json(404, "error" to NOT_CONNECTED, "success" to false)
+        if (released() || !speaker.status().connected) return json(404, "error" to NOT_CONNECTED, "success" to false)
         val fn = commands[name] ?: return json(400, "error" to "Unknown command", "success" to false)
         return try {
             fn()

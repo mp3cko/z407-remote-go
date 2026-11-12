@@ -131,7 +131,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	ip := fs.String("ip", "0.0.0.0", "Host IP to bind to")
 	port := fs.Int("port", defaultPort, "Port to bind to")
 	noWindow := fs.Bool("no-window", false, "Do not open the remote in a window; run until interrupted (Ctrl+C)")
-	peerList := fs.String("peers", "", "Other computers running this app, as host or host:port, comma-separated.\n"+
+	peerList := fs.String("peers", "", "Other devices running this app, as host or host:port, comma-separated.\n"+
 		"Replaces the list saved from the remote's page for this run")
 	logTo := fs.String("log", "", "Where the output goes: \"terminal\" or \"file\" ("+logPath()+").\n"+
 		"Default: terminal; the Windows GUI build, which has no terminal: file")
@@ -183,11 +183,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	})
 	handler := server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence), server.WithPeers(store),
 		server.WithAddrs(func() []string { return webURLs(d.addrs(), actualPort, *ip) }),
-		server.WithNotice(notice), server.WithHistory(history),
-		server.WithShutdown(func() {
-			lg.Infof("Shutdown requested over the network (another computer takes over the speakers), stopping")
-			cancelBg()
-		}))
+		server.WithNotice(notice), server.WithHistory(history))
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
@@ -203,6 +199,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	tk.Peers = func() []string { list, _ := store.List(); return list }
 	tk.Connected = func() bool { connected, _ := d.sp.Status(); return connected }
 	tk.Found = d.sp.Found
+	tk.Released = func() bool { phase, _ := d.sp.Progress(); return phase == speaker.PhaseReleased }
 	tk.Note = notice.Set
 	if tk.IsSelf == nil {
 		tk.IsSelf = peers.SelfCheck(actualPort, d.ips, d.resolve)

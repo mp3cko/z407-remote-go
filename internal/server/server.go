@@ -42,6 +42,10 @@ type Speaker interface {
 	// under way ("searching", "connecting", or "" between attempts), and
 	// what went wrong with the last one.
 	Progress() (phase, problem string)
+	// Release lets go of the speakers until Reconnect, so that another
+	// device can connect. Progress then reports the phase "released".
+	Release()
+	Reconnect()
 	VolumeUp() error
 	VolumeDown() error
 	PlayPause() error
@@ -65,12 +69,9 @@ func WithLogger(l *logx.Logger) Option { return func(s *srv) { s.log = l } }
 // WithPresence reports the pages open on this machine to p.
 func WithPresence(p *Presence) Option { return func(s *srv) { s.presence = p } }
 
-// WithPeers sets the store behind the "Other computers" editor (default: a
+// WithPeers sets the store behind the "Other devices" editor (default: a
 // list that lives in memory only).
 func WithPeers(p *peers.Store) Option { return func(s *srv) { s.peers = p } }
-
-// WithShutdown enables POST /api/shutdown: fn must make the app stop.
-func WithShutdown(fn func()) Option { return func(s *srv) { s.shutdown = fn } }
 
 // WithAddrs sets the function listing the addresses the remote can be
 // opened at from other devices ("http://192.168.1.20:5000"), best guess
@@ -89,7 +90,6 @@ type srv struct {
 	cmds     map[string]func() error
 	presence *Presence
 	peers    *peers.Store
-	shutdown func()
 	addrs    func() []string
 	notice   *Notice
 	history  *logx.History
@@ -128,7 +128,8 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	mux.HandleFunc("GET /api/log", s.logLines)
 	mux.HandleFunc("GET /api/peers", s.listPeers)
 	mux.HandleFunc("POST /api/peers", s.savePeers)
-	mux.HandleFunc("POST /api/shutdown", s.shutdownApp)
+	mux.HandleFunc("POST /api/disconnect", s.disconnect)
+	mux.HandleFunc("POST /api/reconnect", s.reconnect)
 	mux.HandleFunc("POST /api/{command}", s.command)
 	return s.accessLog(mux)
 }
@@ -246,30 +247,19 @@ func (s *srv) savePeers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// shutdownLinger bounds the wait for the caller of POST /api/shutdown to
-// take the answer before the app goes down.
-const shutdownLinger = time.Second
-
-// shutdownApp lets another instance take the speakers over: it answers, then
-// stops the app, which releases the Bluetooth link.
-func (s *srv) shutdownApp(w http.ResponseWriter, r *http.Request) {
-	if s.shutdown == nil {
-		writeJSON(w, http.StatusNotImplemented, map[string]any{"success": false, "error": "Shutdown is not available"})
-		return
-	}
-	// The caller must have the answer before the server starts closing
-	// connections: on Windows a connection closed during shutdown can be
-	// reset, and the answer is lost with it. "Connection: close" makes the
-	// caller hang up once it has read the answer, which ends this request's
-	// context; only then does the shutdown begin.
-	w.Header().Set("Connection", "close")
+// disconnect lets another device take the speakers over (they accept one
+// controller at a time): the app lets go of them and stays open. Its page
+// says so and offers to reconnect.
+func (s *srv) disconnect(w http.ResponseWriter, _ *http.Request) {
+	// Closing the link can take a moment; the caller does not wait for it.
+	go s.sp.Release()
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
-	_ = http.NewResponseController(w).Flush()
-	select {
-	case <-r.Context().Done():
-	case <-time.After(shutdownLinger):
-	}
-	go s.shutdown()
+}
+
+// reconnect ends what disconnect began.
+func (s *srv) reconnect(w http.ResponseWriter, _ *http.Request) {
+	s.sp.Reconnect()
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
 type statusWriter struct {

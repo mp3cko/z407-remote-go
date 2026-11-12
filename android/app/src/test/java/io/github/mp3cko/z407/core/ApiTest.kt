@@ -15,11 +15,12 @@ class ApiTest {
     private val store = MemoryPeerStore()
     private var running: Running? = null
 
-    private fun connectedApi(): Api {
-        val r = Running(dialer).also { running = it }
-        r.waitConnected()
-        return Api(r.manager, store)
+    private fun running(): Running = Running(dialer).also {
+        running = it
+        it.waitConnected()
     }
+
+    private fun connectedApi() = Api(running().manager, store)
 
     private fun disconnectedApi() = Api(SpeakerManager(FakeDialer()), store)
 
@@ -161,14 +162,31 @@ class ApiTest {
     }
 
     @Test
-    fun shutdownIsNotAvailableOnThePhone() {
-        check(connectedApi().handle("POST", "/api/shutdown", null), 501, "{\"error\":\"Shutdown is not available\",\"success\":false}\n")
+    fun disconnectAndReconnect() {
+        var released = false
+        val api = Api(
+            running().manager, store,
+            disconnect = { released = true }, reconnect = { released = false }, released = { released },
+        )
+        check(api.handle("POST", "/api/disconnect", null), 200, "{\"success\":true}\n")
+        assertEquals(true, released)
+        // Released: the page says so, whatever the manager is doing, and commands are refused.
+        check(api.handle("GET", "/api/status", null), 200, "{\"connected\":false,\"note\":\"\",\"phase\":\"released\",\"problem\":\"\",\"volume\":50}\n")
+        assertEquals(404, api.handle("POST", "/api/vol_up", null).status)
+        check(api.handle("POST", "/api/reconnect", null), 200, "{\"success\":true}\n")
+        assertEquals(false, released)
+        assertEquals(405, api.handle("GET", "/api/disconnect", null).status)
+        assertEquals(405, api.handle("GET", "/api/reconnect", null).status)
+        // The defaults answer the same; they are what the desktop parity test compares with.
+        check(connectedApi().handle("POST", "/api/disconnect", null), 200, "{\"success\":true}\n")
     }
 
     @Test
-    fun thePhoneHasNoWebAddress() {
+    fun webAddresses() {
         check(connectedApi().handle("GET", "/api/addrs", null), 200, "{\"urls\":[]}\n")
         assertEquals(405, connectedApi().handle("POST", "/api/addrs", null).status)
+        val api = Api(SpeakerManager(FakeDialer()), store, addrs = { listOf("http://192.168.1.30:5000") })
+        check(api.handle("GET", "/api/addrs", null), 200, "{\"urls\":[\"http://192.168.1.30:5000\"]}\n")
     }
 
     @Test

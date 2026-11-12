@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -484,4 +485,89 @@ func TestProgressNamesTheProblem(t *testing.T) {
 	if c, _ := m.Status(); c {
 		t.Fatal("connected after a failed handshake")
 	}
+}
+
+// Release gives the speakers to another controller: the link is closed and
+// nothing is attempted until Reconnect.
+func TestReleaseAndReconnect(t *testing.T) {
+	d := &fakeDialer{}
+	m, _, _ := start(t, d)
+	waitConnected(t, m)
+
+	m.Release()
+	if c, _ := m.Status(); c {
+		t.Fatal("still connected after Release")
+	}
+	if phase, problem := m.Progress(); phase != PhaseReleased || problem != "" {
+		t.Fatalf("progress = %q, %q", phase, problem)
+	}
+	if n := d.link(0).closeCount(); n != 1 {
+		t.Fatalf("link closed %d times", n)
+	}
+	if err := m.VolumeUp(); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("command while released: %v", err)
+	}
+	time.Sleep(30 * time.Millisecond) // many retry intervals
+	if n := d.dialCount(); n != 1 {
+		t.Fatalf("dialed %d times while released", n)
+	}
+	m.Release() // asked twice: nothing more happens
+
+	m.Reconnect()
+	waitConnected(t, m)
+	if phase, _ := m.Progress(); phase != "" {
+		t.Fatalf("phase after reconnect = %q", phase)
+	}
+	if n := d.dialCount(); n != 2 {
+		t.Fatalf("dials = %d", n)
+	}
+	m.Reconnect() // not released: nothing happens
+	time.Sleep(20 * time.Millisecond)
+	if n := d.dialCount(); n != 2 {
+		t.Fatalf("dials after a second Reconnect = %d", n)
+	}
+}
+
+// A search under way is abandoned by Release, and its late result is not taken.
+func TestReleaseAbandonsTheAttemptUnderWay(t *testing.T) {
+	dialing := make(chan struct{}, 1)
+	d := &ctxDialer{dialing: dialing}
+	m, _, _ := start(t, d)
+	<-dialing
+	m.Release()
+	eventually(t, "the dial to be abandoned", func() bool { return d.cancelled.Load() == 1 })
+	if phase, problem := m.Progress(); phase != PhaseReleased || problem != "" {
+		t.Fatalf("progress = %q, %q", phase, problem)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if c, _ := m.Status(); c {
+		t.Fatal("connected although released")
+	}
+	select {
+	case <-dialing:
+		t.Fatal("dialed again while released")
+	default:
+	}
+	m.Reconnect()
+	select {
+	case <-dialing:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no new attempt after Reconnect")
+	}
+}
+
+// ctxDialer searches until its context ends.
+type ctxDialer struct {
+	dialing   chan struct{}
+	cancelled atomic.Int32
+}
+
+func (d *ctxDialer) Dial(ctx context.Context, _ Handler) (Link, error) {
+	select {
+	case d.dialing <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	d.cancelled.Add(1)
+	return nil, ctx.Err()
 }

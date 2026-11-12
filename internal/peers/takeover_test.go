@@ -85,7 +85,7 @@ func (r *rig) advance(d time.Duration) {
 	r.Check(context.Background(), r.now)
 }
 
-var shutdown = []string{"POST /api/shutdown"}
+var disconnect = []string{"POST /api/disconnect"}
 
 func TestNoCallBeforeTimeout(t *testing.T) {
 	p := newPeer(t)
@@ -96,7 +96,7 @@ func TestNoCallBeforeTimeout(t *testing.T) {
 		t.Fatalf("peer asked before the timeout: %v", p.got())
 	}
 	r.advance(time.Millisecond)
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("peer not asked at the timeout: %v", p.got())
 	}
 }
@@ -128,7 +128,7 @@ func TestNoCallWhileConnected(t *testing.T) {
 		t.Fatal("the search time was not reset by a connection")
 	}
 	r.advance(time.Second)
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("peer not asked after a full search: %v", p.got())
 	}
 }
@@ -139,12 +139,12 @@ func TestEveryPeerIsAskedInOrder(t *testing.T) {
 	var order []string
 	r.Post = func(ctx context.Context, peer string) (string, error) {
 		order = append(order, peer)
-		return PostShutdown(ctx, peer)
+		return PostDisconnect(ctx, peer)
 	}
 	r.advance(0)
 	r.advance(SearchTimeout)
 	for _, p := range []*peerServer{a, b, c} {
-		if !reflect.DeepEqual(p.got(), shutdown) {
+		if !reflect.DeepEqual(p.got(), disconnect) {
 			t.Errorf("peer %s got %v", p.addr(), p.got())
 		}
 	}
@@ -161,7 +161,7 @@ func TestUnreachablePeerIsSkipped(t *testing.T) {
 	r := newRig(down, up.addr())
 	r.advance(0)
 	r.advance(SearchTimeout)
-	if !reflect.DeepEqual(up.got(), shutdown) {
+	if !reflect.DeepEqual(up.got(), disconnect) {
 		t.Fatalf("the peer after an unreachable one got %v", up.got())
 	}
 	if len(r.log) != 2 || !strings.Contains(r.log[0], "did not answer") {
@@ -188,7 +188,7 @@ func TestSlowPeerTimesOut(t *testing.T) {
 	if time.Since(start) > 5*time.Second {
 		t.Fatal("a slow peer held up the takeover")
 	}
-	if !reflect.DeepEqual(up.got(), shutdown) {
+	if !reflect.DeepEqual(up.got(), disconnect) {
 		t.Fatalf("peer after the slow one got %v", up.got())
 	}
 }
@@ -200,7 +200,7 @@ func TestOncePerRun(t *testing.T) {
 	r.advance(SearchTimeout)
 	r.advance(SearchTimeout)
 	r.advance(time.Hour)
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("asked more than once while searching: %v", p.got())
 	}
 	// Not after a later connection loss either: an instance that lists us
@@ -210,7 +210,7 @@ func TestOncePerRun(t *testing.T) {
 	r.connected = false
 	r.advance(time.Second)
 	r.advance(2 * SearchTimeout)
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("asked again after a reconnect: %v", p.got())
 	}
 	if len(r.log) != 2 {
@@ -221,7 +221,7 @@ func TestOncePerRun(t *testing.T) {
 	added := newPeer(t)
 	r.peers = append(r.peers, added.addr())
 	r.advance(time.Second)
-	if !reflect.DeepEqual(added.got(), shutdown) || !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(added.got(), disconnect) || !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("after adding a peer: new %v, old %v", added.got(), p.got())
 	}
 }
@@ -236,7 +236,7 @@ func TestOwnAddressIsSkipped(t *testing.T) {
 	if len(self.got()) != 0 {
 		t.Fatalf("asked itself to shut down: %v", self.got())
 	}
-	if !reflect.DeepEqual(other.got(), shutdown) {
+	if !reflect.DeepEqual(other.got(), disconnect) {
 		t.Fatalf("other peer got %v", other.got())
 	}
 	if len(r.log) != 2 || !strings.Contains(r.log[0], "is this computer") {
@@ -301,7 +301,7 @@ func TestRun(t *testing.T) {
 		Post: func(ctx context.Context, peer string) (string, error) {
 			mu.Lock()
 			defer mu.Unlock()
-			a, err := PostShutdown(ctx, peer)
+			a, err := PostDisconnect(ctx, peer)
 			close(asked)
 			return a, err
 		},
@@ -320,18 +320,18 @@ func TestRun(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not stop")
 	}
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("peer got %v", p.got())
 	}
 }
 
-func TestPostShutdownAnswer(t *testing.T) {
+func TestPostDisconnectAnswer(t *testing.T) {
 	p := newPeer(t)
-	got, err := PostShutdown(context.Background(), p.addr())
+	got, err := PostDisconnect(context.Background(), p.addr())
 	if err != nil || got != `200 {"success":true}` {
 		t.Fatalf("got %q, %v", got, err)
 	}
-	if _, err := PostShutdown(context.Background(), "bad host"); err == nil {
+	if _, err := PostDisconnect(context.Background(), "bad host"); err == nil {
 		t.Error("expected an error for an invalid address")
 	}
 }
@@ -350,7 +350,7 @@ func TestSeenSpeakersGetMoreTime(t *testing.T) {
 		t.Fatalf("peer asked while connecting: %v", p.got())
 	}
 	r.advance(time.Millisecond) // seen, but the connection never came
-	if !reflect.DeepEqual(p.got(), shutdown) {
+	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("peer got %v", p.got())
 	}
 
@@ -360,7 +360,7 @@ func TestSeenSpeakersGetMoreTime(t *testing.T) {
 	r2.Found = func() bool { return false }
 	r2.advance(0)
 	r2.advance(SearchTimeout)
-	if !reflect.DeepEqual(q.got(), shutdown) {
+	if !reflect.DeepEqual(q.got(), disconnect) {
 		t.Fatalf("peer got %v", q.got())
 	}
 }
@@ -384,5 +384,34 @@ func TestNotesTellWhatIsGoingOn(t *testing.T) {
 		if want := []string{"Asking desk:5000 to release the speakers", c.want}; !reflect.DeepEqual(notes, want) {
 			t.Errorf("got %q, want %q", notes, want)
 		}
+	}
+}
+
+// An instance that let go of the speakers asks nobody; told to reconnect, it
+// starts a new search and asks again, also peers asked before.
+func TestReleasedAsksNobodyAndStartsAfresh(t *testing.T) {
+	p := newPeer(t)
+	r := newRig(p.addr())
+	released := false
+	r.Released = func() bool { return released }
+	r.advance(0)
+	r.advance(SearchTimeout)
+	if !reflect.DeepEqual(p.got(), disconnect) {
+		t.Fatalf("peer not asked: %v", p.got())
+	}
+	released = true
+	r.advance(10 * SearchTimeout)
+	if len(p.got()) != 1 {
+		t.Fatalf("asked while released: %v", p.got())
+	}
+	released = false
+	r.advance(time.Second) // the new search begins
+	r.advance(SearchTimeout - time.Millisecond)
+	if len(p.got()) != 1 {
+		t.Fatalf("asked before the new search timed out: %v", p.got())
+	}
+	r.advance(time.Millisecond)
+	if len(p.got()) != 2 {
+		t.Fatalf("not asked again after reconnecting: %v", p.got())
 	}
 }

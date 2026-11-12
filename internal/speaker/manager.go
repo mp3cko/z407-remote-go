@@ -64,6 +64,8 @@ type Handler struct {
 const (
 	PhaseSearching  = "searching"  // looking for the speakers
 	PhaseConnecting = "connecting" // found them, setting up the connection
+	// PhaseReleased: Release was called. Nothing is attempted until Reconnect.
+	PhaseReleased = "released"
 )
 
 // Link is an established connection to the speaker.
@@ -114,8 +116,11 @@ type Manager struct {
 	lastFail  string
 
 	wake chan struct{} // signalled when the current connection is lost
+	turn chan struct{} // signalled by Release and Reconnect
 
 	mu        sync.Mutex
+	released  bool               // between Release and Reconnect
+	cancel    context.CancelFunc // ends the attempt under way
 	link      Link
 	connected bool
 	phase     string // of the attempt under way; "" = none is
@@ -134,6 +139,7 @@ func NewManager(d Dialer, opts ...Option) *Manager {
 		retry:     defaultRetry,
 		heartbeat: defaultHeartbeat,
 		wake:      make(chan struct{}, 1),
+		turn:      make(chan struct{}, 1),
 		volume:    50,
 	}
 	for _, o := range opts {
@@ -160,10 +166,18 @@ func (m *Manager) logf(level logx.Level, format string, args ...any) {
 	}
 }
 
-// Run keeps the speakers connected until ctx is cancelled, then closes the link.
+// Run keeps the speakers connected until ctx is cancelled, then closes the
+// link. Between Release and Reconnect it leaves the speakers alone.
 func (m *Manager) Run(ctx context.Context) {
 	defer m.shutdown()
 	for ctx.Err() == nil {
+		if m.isReleased() {
+			select {
+			case <-ctx.Done():
+			case <-m.turn:
+			}
+			continue
+		}
 		if m.Connected() {
 			m.wait(ctx, m.heartbeat, true)
 			continue
@@ -185,6 +199,55 @@ func (m *Manager) wait(ctx context.Context, d time.Duration, wakeable bool) {
 	case <-ctx.Done():
 	case <-t.C:
 	case <-wake:
+	case <-m.turn:
+	}
+}
+
+// Release lets go of the speakers, so that another controller can connect
+// (they accept one at a time), and leaves them alone until Reconnect.
+func (m *Manager) Release() {
+	m.mu.Lock()
+	if m.released {
+		m.mu.Unlock()
+		return
+	}
+	m.released = true
+	l, cancel := m.link, m.cancel
+	m.link, m.connected, m.phase, m.problem, m.found = nil, false, "", "", false
+	m.attempt++
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel() // a dial in progress is abandoned
+	}
+	if l != nil {
+		_ = l.Close()
+	}
+	m.logf(logx.Info, "Another device asked for the speakers: disconnected until you reconnect")
+	m.turned()
+}
+
+// Reconnect ends a Release: Run connects again.
+func (m *Manager) Reconnect() {
+	m.mu.Lock()
+	was := m.released
+	m.released = false
+	m.mu.Unlock()
+	if was {
+		m.logf(logx.Info, "Reconnecting")
+		m.turned()
+	}
+}
+
+func (m *Manager) isReleased() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.released
+}
+
+func (m *Manager) turned() {
+	select {
+	case m.turn <- struct{}{}:
+	default:
 	}
 }
 
@@ -208,7 +271,14 @@ func (m *Manager) signal() {
 
 // connectOnce makes one dial + handshake attempt and reports success.
 func (m *Manager) connectOnce(ctx context.Context) bool {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	m.mu.Lock()
+	if m.released {
+		m.mu.Unlock()
+		return false
+	}
+	m.cancel = cancel
 	old := m.link
 	m.link, m.connected, m.dropped, m.pendingKA = nil, false, false, false
 	m.phase, m.found = PhaseSearching, false
@@ -229,6 +299,9 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 		OnDisconnect: func() { m.onDisconnect(id) },
 	})
 	if err != nil {
+		if m.isReleased() {
+			return false // abandoned, not failed
+		}
 		m.logFail("Dial failed: %v", err)
 		m.failed(dialProblem(err))
 		return false
@@ -242,7 +315,9 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 
 	m.mu.Lock()
 	if m.attempt != id || m.dropped {
-		m.phase, m.problem = "", problemLost
+		if !m.released {
+			m.phase, m.problem = "", problemLost
+		}
 		m.mu.Unlock()
 		_ = l.Close()
 		return false
@@ -349,10 +424,13 @@ func (m *Manager) Status() (connected bool, volume int) {
 // Progress tells more about a missing connection: the phase of the attempt
 // under way (PhaseSearching, PhaseConnecting, or "" between attempts), and
 // what went wrong with the last one ("" when nothing did). The problem stays
-// until a connection succeeds.
+// until a connection succeeds. After Release the phase is PhaseReleased.
 func (m *Manager) Progress() (phase, problem string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.released {
+		return PhaseReleased, ""
+	}
 	return m.phase, m.problem
 }
 

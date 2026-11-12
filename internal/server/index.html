@@ -186,6 +186,26 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
 #conn.on #connText { color: var(--green); }
 #conn.busy #connText { color: var(--amber); }
 #volBar { flex: 1; display: flex; gap: 3px; height: 18px; }
+/* Another device took the speakers: the volume bar makes way for the key
+   that takes them back. It lies above the key that opens the log. */
+#conn.released #volBar, #reconnect[hidden] { display: none; }
+#conn.released #connText { color: var(--amber); }
+#reconnect {
+  --ink: var(--amber); flex: 1; position: relative; z-index: 1;
+  min-height: 34px; padding: 0 12px; border-radius: 8px;
+  font-family: inherit; font-size: .7rem; letter-spacing: .16em; text-shadow: 0 0 8px currentColor;
+  border: 1px solid color-mix(in srgb, var(--amber) 55%, transparent);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--amber) 16%, transparent), inset 0 0 14px color-mix(in srgb, var(--amber) 8%, transparent);
+  transform: none; filter: none; transition: background .15s, box-shadow .15s;
+  animation: beckon 2.4s ease-in-out infinite;
+}
+#reconnect svg { width: 15px; height: 15px; filter: drop-shadow(0 0 4px currentColor); }
+#reconnect:hover, #reconnect:focus-visible { background: color-mix(in srgb, var(--amber) 20%, transparent); }
+#reconnect:active { background: color-mix(in srgb, var(--amber) 32%, transparent); }
+@keyframes beckon {
+  50% { box-shadow: 0 0 24px color-mix(in srgb, var(--amber) 34%, transparent), inset 0 0 14px color-mix(in srgb, var(--amber) 14%, transparent); }
+}
 @media (max-width: 420px) { #msg { -webkit-line-clamp: 3; } }
 #volBar i { flex: 1; border-radius: 2px; background: var(--seg-off); transition: background .15s, box-shadow .15s; }
 #volBar i.lit { background: var(--c); box-shadow: 0 0 8px var(--c); }
@@ -281,18 +301,6 @@ details > :not(summary) { margin-left: 16px; margin-right: 16px; }
 details ul { margin-top: 0; margin-bottom: 12px; padding-left: 18px; }
 details li { margin-bottom: 6px; }
 details p { margin-top: 0; margin-bottom: 8px; }
-#peersForm { display: flex; gap: 10px; align-items: center; margin: 10px 16px 8px; }
-#peersInput {
-  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 12px;
-  font: inherit; color: inherit; background: rgba(128, 128, 128, .12);
-  border: 1px solid rgba(128, 128, 128, .45);
-  -webkit-user-select: text; user-select: text;
-}
-#peersInput:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
-#peersInput:disabled { opacity: .6; }
-#peersForm button { min-height: 44px; padding: 0 18px; }
-#peersMsg { min-height: 1.4em; }
-#peersMsg.err { color: var(--red); }
 footer { text-align: center; font-size: .72rem; padding: 0 8px; }
 footer a { color: inherit; }
 
@@ -305,6 +313,69 @@ footer a { color: inherit; }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
 #confirm p { margin: 0 0 18px; font-weight: 600; }
 #confirm form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 4px; }
+
+/* ---------- other devices: a panel of the remote's own make ---------- */
+#devices {
+  color: #33302b; border: 0; border-radius: 28px; padding: 20px 20px 22px;
+  width: min(420px, calc(100% - 28px)); max-height: calc(100% - 28px); overflow-y: auto;
+  background: linear-gradient(175deg, var(--shell-1), var(--shell-2));
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .75), 0 5px 0 #8f8878, 0 30px 60px rgba(0, 0, 0, .5);
+  font-size: .85rem;
+}
+#devices[open] { display: grid; gap: 14px; animation: panel-in .28s cubic-bezier(.2, .9, .25, 1); }
+#devices::backdrop { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+@keyframes panel-in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+#devices header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 4px; }
+#devices h2 { margin: 0; font-size: .74rem; }
+#devices p { margin: 0; padding: 0 4px; }
+#devClose { width: 38px; min-height: 38px; padding: 0; border-radius: 12px; }
+#devices:focus-visible { outline: none; }
+#devClose svg { width: 16px; height: 16px; }
+#devList {
+  list-style: none; margin: 0; padding: 6px; display: grid; gap: 6px; border-radius: 18px;
+  background: var(--well); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .3), 0 1px 0 rgba(255, 255, 255, .7);
+}
+#devList li {
+  display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 6px 0 14px; border-radius: 13px;
+  background: linear-gradient(180deg, var(--light-1), var(--light-2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 2px 0 var(--light-edge);
+  animation: line-in .3s cubic-bezier(.2, .9, .25, 1) both;
+}
+#devList .led { --c: var(--blue); }
+#devList code, #devSelf code {
+  font: 600 .88rem ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  overflow-wrap: anywhere; -webkit-user-select: text; user-select: text;
+}
+#devList code { flex: 1; min-width: 0; }
+#devList button {
+  width: 34px; min-height: 34px; padding: 0; border-radius: 10px; flex: none;
+  background: none; box-shadow: none; color: #8a8376; transition: color .15s, background .15s, transform .06s;
+}
+#devList button:hover { color: var(--red-2); background: rgba(0, 0, 0, .07); filter: none; }
+#devList button:active { transform: scale(.9); }
+#devList button svg { width: 15px; height: 15px; }
+#devList .none { justify-content: center; padding: 0 14px; background: none; box-shadow: none; color: var(--print); animation: none; }
+#devForm { display: flex; gap: 10px; }
+/* the entry field: a strip of the display */
+#devInput {
+  flex: 1; min-width: 0; min-height: 50px; padding: 0 14px; border: 0; border-radius: 13px;
+  font: 600 .92rem ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  color: var(--lcd-ink); caret-color: var(--lcd-ink); background: linear-gradient(180deg, #060806, var(--lcd));
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 255, 255, .7);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--lcd-ink) 50%, transparent);
+  -webkit-user-select: text; user-select: text; transition: box-shadow .2s;
+}
+#devInput::placeholder { color: color-mix(in srgb, var(--lcd-ink) 38%, transparent); text-shadow: none; }
+#devInput:focus-visible {
+  outline: none;
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .9), inset 0 0 0 1px color-mix(in srgb, var(--lcd-ink) 45%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--lcd-ink) 12%, transparent), 0 1px 0 rgba(255, 255, 255, .7);
+}
+#devInput:disabled, #devForm button:disabled { opacity: .55; cursor: default; }
+#devForm button { min-height: 50px; padding: 0 20px; }
+#devMsg { min-height: 1.4em; font-weight: 600; }
+#devMsg.err { color: var(--red-2); }
+#devSelf { color: var(--print); font-size: .8rem; }
 
 /* ---------- log viewer: the display, grown to a sheet ---------- */
 #log {
@@ -445,6 +516,9 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       </div>
       <div class="barrow">
         <div id="volBar" role="img" aria-label="Estimated volume"></div>
+        <button id="reconnect" type="button" data-cmd="reconnect" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/></svg>Reconnect
+        </button>
         <span class="tag" aria-hidden="true">Log</span>
       </div>
       <button id="logOpen" type="button" aria-haspopup="dialog" aria-label="Show the log"></button>
@@ -483,7 +557,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 
     <section class="group system" aria-label="System">
       <div class="rule"><span class="print">System</span></div>
-      <div class="keys c2">
+      <div class="keys c3">
+        <button class="light" id="devOpen" type="button" aria-haspopup="dialog" aria-label="Other devices">Devices</button>
         <button class="light" data-cmd="bluetooth_pair" data-confirm="Put the speakers into pairing mode?">Pair</button>
         <button class="red" data-cmd="factory_reset" data-confirm="Factory reset the speakers? Paired devices will be erased.">Reset</button>
       </div>
@@ -506,16 +581,6 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     </ul>
   </details>
 
-  <details id="peers">
-    <summary>Other computers</summary>
-    <p>The speakers accept one controller at a time. When this app cannot find them, it asks the computers listed here to close their copy of the app and release the speakers.</p>
-    <form id="peersForm">
-      <input id="peersInput" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"
-             placeholder="living-room-pc, 192.168.1.20:5000" aria-label="Addresses of other computers, separated by commas">
-      <button class="light" type="submit">Save</button>
-    </form>
-    <p id="peersMsg" role="status" aria-live="polite"></p>
-  </details>
   </section>
 
   <footer>
@@ -530,6 +595,22 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     <button value="cancel" class="light">Cancel</button>
     <button value="ok" class="orange">Confirm</button>
   </form>
+</dialog>
+
+<dialog id="devices" aria-labelledby="devTitle" tabindex="-1">
+  <header>
+    <h2 id="devTitle" class="print">Other devices</h2>
+    <button id="devClose" class="light" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <p>The speakers obey one controller at a time. When this app cannot find them, it asks the computers and phones listed here to let go of them.</p>
+  <ul id="devList" aria-label="Other devices"></ul>
+  <form id="devForm">
+    <input id="devInput" type="text" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="done"
+           placeholder="192.168.1.20 or living-room-pc" aria-label="Address of another device">
+    <button class="orange" type="submit">Add</button>
+  </form>
+  <p id="devMsg" role="status" aria-live="polite"></p>
+  <p id="devSelf" hidden>On the other devices, enter this one as <code></code></p>
 </dialog>
 
 <dialog id="log" aria-labelledby="logTitle">
@@ -605,6 +686,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     connected: ['on', 'Connected'],
     searching: ['busy', 'Searching…'],
     connecting: ['busy', 'Connecting…'],
+    released: ['', 'Disconnected'], // another device asked for the speakers
   };
 
   // Signal lamp: green while the app answers, red once it stops.
@@ -626,7 +708,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       const res = await fetch('/api/' + encodeURIComponent(cmd), { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (data.success) {
-        say('Sent');
+        say(cmd === 'reconnect' ? 'Reconnecting' : 'Sent');
         if ('input' in btn.dataset) {
           document.querySelectorAll('.cell .led').forEach((led) =>
             led.classList.toggle('lit', led.parentElement === btn.parentElement));
@@ -639,19 +721,29 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     }
   }
 
+  let stopped = false; // the app said that it is stopping
+
   async function refresh() {
     try {
       const data = await (await fetch('/api/status')).json();
       api(true);
       showConn(...(PHASES[data.phase] || ['', 'Not connected']));
-      if (data.note) setStanding(data.note, false);
+      const released = data.phase === 'released';
+      conn.classList.toggle('released', released);
+      $('reconnect').hidden = !released;
+      if (released) setStanding('Another device took the speakers', false);
+      else if (data.note) setStanding(data.note, false);
       else setStanding(data.connected ? '' : data.problem || '', true);
       if (typeof data.volume === 'number') showVolume(data.volume);
     } catch {
       api(false);
-      showConn('', 'App unreachable');
-      setStanding('', false);
+      conn.classList.remove('released');
+      $('reconnect').hidden = true;
+      showConn('', stopped ? 'App closed' : 'App unreachable');
+      setStanding(stopped ? 'The app was closed. Start it again to use the remote.' : '', false);
+      return;
     }
+    stopped = false; // the app answers (again)
   }
 
   // Poll faster while not connected, so the display follows the attempts.
@@ -755,43 +847,87 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     });
   });
 
-  // "Other computers" editor. The list is sent in the query string, not in
-  // a request body, so the same page works inside the Android app.
-  const peersInput = $('peersInput'), peersMsg = $('peersMsg');
+  // "Other devices": the list behind the Devices key. Every change is saved
+  // at once. The list is sent in the query string, not in a request body,
+  // so the same page works inside the Android app.
+  const devDlg = $('devices'), devList = $('devList'), devInput = $('devInput'), devMsg = $('devMsg');
+  let peers = [], peersFixed = false;
 
   function peersNote(msg, isErr) {
-    peersMsg.textContent = msg;
-    peersMsg.classList.toggle('err', !!isErr);
+    devMsg.textContent = msg;
+    devMsg.classList.toggle('err', !!isErr);
+  }
+
+  function showPeers() {
+    devList.replaceChildren(...peers.map((peer) => {
+      const li = document.createElement('li'), led = document.createElement('span'), code = document.createElement('code');
+      led.className = 'led lit';
+      code.textContent = peer;
+      li.append(led, code);
+      if (!peersFixed) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Remove ' + peer);
+        btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        btn.onclick = () => savePeers(peers.filter((p) => p !== peer), 'Removed.');
+        li.append(btn);
+      }
+      return li;
+    }));
+    if (!peers.length) {
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = 'No devices yet';
+      devList.append(li);
+    }
+    devInput.disabled = $('devForm').querySelector('button').disabled = peersFixed;
   }
 
   async function loadPeers() {
     try {
       const data = await (await fetch('/api/peers')).json();
-      peersInput.value = (data.peers || []).join(', ');
-      peersInput.disabled = !!data.fixed;
-      $('peersForm').querySelector('button').disabled = !!data.fixed;
-      peersNote(data.fixed ? 'Set with --peers for this run. The saved list is unchanged.' : '');
+      peers = data.peers || [];
+      peersFixed = !!data.fixed;
+      showPeers();
+      peersNote(peersFixed ? 'Set with --peers for this run. The saved list is unchanged.' : '');
     } catch {
       peersNote('Cannot load the list', true);
     }
   }
 
-  $('peersForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
+  async function savePeers(list, done) {
     try {
-      const res = await fetch('/api/peers?list=' + encodeURIComponent(peersInput.value), { method: 'POST' });
+      const res = await fetch('/api/peers?list=' + encodeURIComponent(list.join(',')), { method: 'POST' });
       const data = await res.json().catch(() => ({}));
-      if (data.success) {
-        peersInput.value = data.peers.join(', ');
-        peersNote(data.peers.length ? 'Saved.' : 'Saved. The list is empty.');
-      } else peersNote(data.error || 'Could not save', true);
+      if (!data.success) {
+        peersNote(data.error || 'Could not save', true);
+        return false;
+      }
+      peers = data.peers;
+      showPeers();
+      peersNote(done);
+      return true;
     } catch {
       peersNote('Cannot reach the app', true);
+      return false;
     }
-  });
+  }
 
-  // "Web address": where other devices can open this remote. The Android
-  // app serves no page, answers with an empty list, and the block stays hidden.
+  $('devForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const entry = devInput.value.trim();
+    if (entry && await savePeers([...peers, entry], 'Added.')) devInput.value = '';
+  });
+  $('devOpen').addEventListener('click', () => {
+    loadPeers();
+    devDlg.showModal();
+    devDlg.focus(); // not the entry field: on a phone that would raise the keyboard
+  });
+  $('devClose').addEventListener('click', () => devDlg.close());
+  devDlg.addEventListener('click', (e) => { if (e.target === devDlg) devDlg.close(); }); // the backdrop
+
+  // "Web address": where other devices can open this remote. With an empty
+  // list (the Android app when it could not open its port) the block stays hidden.
   async function copy(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -827,6 +963,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
         return li;
       }));
       $('web').hidden = !urls.length;
+      $('devSelf').hidden = !urls.length;
+      if (urls.length) $('devSelf').querySelector('code').textContent = urls[0].replace(/^https?:\/\//, '');
     } catch { /* the block stays hidden */ }
   }
 
@@ -836,7 +974,15 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 
   // Held open so the app knows this page exists: when the remote runs in a
   // normal browser tab, the app stops once the last local page is closed.
-  if ('EventSource' in window) new EventSource('/api/events');
+  // Its one event, "bye", says that the app is stopping. The window of the
+  // app ("close") then closes; a page that stays open says what happened.
+  if ('EventSource' in window) {
+    new EventSource('/api/events').addEventListener('bye', (e) => {
+      stopped = true;
+      if (e.data === 'close') window.close();
+      refresh();
+    });
+  }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
 </script>

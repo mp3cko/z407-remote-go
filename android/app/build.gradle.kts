@@ -63,6 +63,8 @@ val copyWebUi by tasks.registering(Copy::class) {
     from(rootProject.file("../internal/server/static")) {
         include("icon-192.png") // the page's touch icon; nothing else is used inside the app
     }
+    // What the app serves to browsers on the network, next to the page.
+    from(rootProject.file("../internal/server/static")) { into("static") }
     into(layout.buildDirectory.dir("generated/webui"))
 }
 tasks.named("preBuild") { dependsOn(copyWebUi) }

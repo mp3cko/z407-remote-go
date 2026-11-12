@@ -1,5 +1,6 @@
 package io.github.mp3cko.z407
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
@@ -8,6 +9,7 @@ import android.bluetooth.BluetoothManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
@@ -36,6 +38,7 @@ class MainActivity : Activity() {
     private companion object {
         const val REQUEST_PERMISSIONS = 1
         const val REQUEST_ENABLE_BLUETOOTH = 2
+        const val REQUEST_NOTIFICATIONS = 3
         const val HOST = WebViewAssetLoader.DEFAULT_DOMAIN // appassets.androidplatform.net
     }
 
@@ -43,6 +46,7 @@ class MainActivity : Activity() {
     private lateinit var assets: WebViewAssetLoader
     private var askedPermissions = false
     private var askedToEnable = false
+    private var askedNotifications = false
     private var dialog: AlertDialog? = null
 
     // JavaScript runs only for the page bundled with the app; answer() keeps
@@ -154,12 +158,6 @@ class MainActivity : Activity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        // Free the speakers for other controllers while the app is not visible.
-        if (!isChangingConfigurations) remote.stop()
-    }
-
     override fun onDestroy() {
         dialog?.dismiss()
         super.onDestroy()
@@ -169,7 +167,16 @@ class MainActivity : Activity() {
     // Bluetooth on needs BLUETOOTH_CONNECT on Android 12+).
     @SuppressLint("MissingPermission")
     private fun connect() {
-        remote.start()
+        // The service connects and keeps the remote working when the app
+        // leaves the screen; its notification needs a permission of its own.
+        RemoteService.start(this)
+        remote.opened()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !askedNotifications &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            askedNotifications = true
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        }
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager?)?.adapter
         if (adapter != null && !adapter.isEnabled && !askedToEnable) {
             askedToEnable = true

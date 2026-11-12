@@ -2,13 +2,18 @@
 
 A small remote for the Logitech Z407 speakers. It runs on a computer with Bluetooth, talks to the speakers over Bluetooth Low Energy, shows the remote in its own window, and serves the same page to any phone or tablet on the same network. There is also an [Android app](#android-app) that controls the speakers directly, without a computer.
 
+![The remote on a wide screen](docs/wide.png)
+
+<p align="center"><img src="docs/remote.png" alt="The remote in its window" width="320"> <img src="docs/devices.png" alt="The Devices panel" width="320"></p>
+
 ## Features
 
 - Speaker volume, bass, play/pause and track skip
 - Input selection (Bluetooth, AUX, USB), pairing and factory reset
 - Opens as an app window on the computer; phones on the network can add it to their home screen
+- Several computers and phones can share the speakers: the one you use takes them over, the others show "Disconnected" and a Reconnect key
 - Single static binary for Windows, Linux and macOS
-- Android app with the same remote, talking to the speakers directly
+- Android app with the same remote, talking to the speakers directly. It keeps working in the background, with volume and play/pause keys in its notification
 
 ## Install
 
@@ -35,9 +40,11 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
+While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and make the app let go of the speakers (`POST /api/disconnect`, see [Several computers](#several-devices)).
 
 The display of the remote tells what the app is doing: "Searching…", "Connecting…", "Connected", and above that what is in the way ("Speakers not found", "Bluetooth is off or missing") or what is being done about it ("Asking living-room-pc:5000 to release the speakers"). Press the display to open the log: the last 500 lines, updated as they come. No terminal is needed for that, on any platform.
+
+<p align="center"><img src="docs/log.png" alt="The log viewer" width="320"></p>
 
 ### The window
 
@@ -55,16 +62,25 @@ By default the app listens on all interfaces on port 5000. To change that:
 z407 --ip 127.0.0.1 --port 8080
 ```
 
-### Several computers
+### Several devices
 
-The speakers accept one Bluetooth LE controller at a time, so a second copy of this app cannot connect while the first one holds the link. To let the copy you started last win, tell each copy where the others run:
+The speakers accept one Bluetooth LE controller at a time, so a second copy of this app, on another computer or on a phone, cannot connect while the first one holds the link. To let the copy you are using take them, tell each copy where the others run:
 
-- On the remote's page, open "Other computers" below the remote, enter the other machines as `host` or `host:port` separated by commas (for example `living-room-pc, 192.168.1.20:5001`; the port defaults to 5000) and press Save. The list is stored in `z407/config.json` in your configuration directory (`%AppData%` on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS) and takes effect at once.
-- Or start the app with `--peers living-room-pc,192.168.1.20:5001`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the page during that run.
+1. Press **Devices** on the remote (in the System row).
+2. Enter the other device as `host` or `host:port` (for example `living-room-pc` or `192.168.1.20:5001`; the port defaults to 5000) and press **Add**. The foot of the panel shows what to enter for the device you are looking at.
+3. Do the same on the other devices, so that each one lists the rest.
 
-When a copy has looked for the speakers for 3 seconds without seeing them (free speakers show up within a second or two), it sends `POST /api/shutdown` to every computer on its list. A copy that receives this closes itself (window included) and releases the speakers. Only the app stops: the computer itself is not shut down, and nothing else on it is touched. The searching copy then connects, usually within a few seconds. If the speakers were seen but the connection does not come about, the same happens after 10 seconds. Each computer is asked at most once per run and a copy never asks itself, so two copies that list each other cannot keep shutting each other down. Computers that are off or not running the app are skipped.
+Every change is saved at once and takes effect at once; the cross next to an entry removes it. On a computer the list is stored in `z407/config.json` in your configuration directory (`%AppData%` on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS).
 
-Like the rest of the API, `/api/shutdown` is not authenticated: anyone on your network can close the app with it. They cannot do more than that.
+Or start the app with `--peers living-room-pc,192.168.1.20:5001`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the remote during that run.
+
+When a copy has looked for the speakers for 3 seconds without seeing them (free speakers show up within a second or two), it sends `POST /api/disconnect` to every device on its list. A copy that receives this lets go of the speakers and stays open: its display says "Disconnected" and "Another device took the speakers", and shows a Reconnect key. The searching copy then connects, usually within a few seconds. If the speakers were seen but the connection does not come about, the same happens after 10 seconds. Devices that are off or not running the app are skipped.
+
+<p align="center"><img src="docs/disconnected.png" alt="The display after another device took the speakers" width="360"></p>
+
+Press **Reconnect** to take the speakers back: the copy searches again and, like a freshly started one, asks the others to let go. A copy asks each device at most once per search, never asks itself, and asks nobody while it is disconnected, so two copies that list each other cannot keep taking the speakers from each other: they change hands only when somebody starts a copy or presses Reconnect.
+
+Like the rest of the API, `/api/disconnect` and `/api/reconnect` are not authenticated: anyone on your network can make the app let go of the speakers or take them back.
 
 ### On your phone
 
@@ -97,15 +113,18 @@ The program itself is inside the app, for use in a terminal: `"Z407 Remote.app/C
 
 ## Android app
 
-The Android app shows the same remote and talks to the speakers itself over Bluetooth LE. No computer is involved. It needs Android 8.0 or newer.
+The Android app shows the same remote and talks to the speakers itself over Bluetooth LE. No computer is needed. It needs Android 8.0 or newer.
 
 Install: download `z407_vX.Y.Z_android.apk` from the [releases page](https://github.com/mp3cko/z407-remote-go/releases) on the phone and open it (Android asks you to allow installing from that source), or from a computer with the phone attached: `adb install z407_vX.Y.Z_android.apk`.
 
 Good to know:
 
 - On first start the app asks for the "Nearby devices" permission (Android 12 and newer) or the Location permission (Android 8 to 11, where Bluetooth scans require it and Location must be switched on). The app does not use your position.
-- The app holds the speakers only while it is on screen. When you leave it, it disconnects, so that other controllers can connect.
-- If a computer running the desktop app holds the speakers, the phone cannot connect. Open "Other computers" in the app and enter that computer's address: after 3 seconds of searching, the app asks it to close its copy (see [Several computers](#several-computers)) and then connects. Each computer is asked once each time the app comes to the screen. The phone and the computer must be on the same network for this. Nothing can close the phone app remotely.
+- **It keeps working in the background.** Once opened, the app stays connected when you switch to another app or turn the screen off. A notification says so for as long as it does: it shows the state of the connection ("Connected", "Searching…", "Disconnected"), has keys for volume down, play/pause and volume up, and opens the app when tapped. On Android 13 and newer the app asks for permission to show it; without the permission the app still works in the background, but you do not get the keys.
+- **To stop it**, swipe the app away in the list of recent apps. The notification disappears, the speakers are released for other controllers, and the phone stops serving the remote.
+- **Other devices can use the phone's remote.** While the app runs it serves the remote to the network on port 5000, like the desktop app: open the address shown under "Web address" in a browser on another device. As on the computer, there is no authentication, so anyone on your network can control the speakers through it and read the app's log.
+- **Sharing the speakers with a computer** works as described under [Several devices](#several-devices): press Devices, enter the computer's address, and enter the phone's address (the one under "Web address") on the computer. Whichever you start or press Reconnect on takes the speakers; the other shows "Disconnected" and a Reconnect key. The phone and the computer must be on the same network. The phone's address may change when it joins the network again, unless your router always gives it the same one.
+- A phone that is still looking for the speakers asks the devices on its list once more each time you bring the app to the screen.
 
 ### Building it
 
@@ -126,7 +145,7 @@ The app has no copy of the remote's page: the build takes `internal/server/index
 
 The Bluetooth side cannot be tested automatically. With a phone and the speakers:
 
-1. Fresh install, first start: the permission prompt appears. Refuse it: a dialog explains what will not work and offers to ask again. Grant it.
+1. Fresh install, first start: the permission prompt appears. Refuse it: a dialog explains what will not work and offers to ask again. Grant it. On Android 13 and newer a second prompt asks for notifications: allow it, and the notification "Z407" appears.
 2. With Bluetooth switched off, start the app: it offers to switch Bluetooth on.
 3. Speakers on, nothing else connected to their control channel: within about 15 seconds the display shows "Connected" and the Signal lamp is green.
 4. Volume up and down: the speakers react and the volume estimate moves in steps of 5. Bass up and down, play/pause, next, previous: the speakers react.
@@ -134,16 +153,18 @@ The Bluetooth side cannot be tested automatically. With a phone and the speakers
 6. Pair: after confirming, the speakers enter pairing mode. (Reset erases the speakers' pairings; test it only if you mean to.)
 7. Leave the app open for five minutes: it stays connected (keep-alives are answered).
 8. Switch the speakers off: the display shows "Not connected". Switch them on: the app reconnects by itself.
-9. Press Home, then check that another controller (for example the desktop app) can now connect. Return to the app after closing the other controller: it reconnects.
+9. Press Home, then turn the screen off for a minute: the notification "Z407 · Connected" stays, and its three keys (volume down, play/pause, volume up) work; the volume in its text follows. Tap it: the app opens. Swipe the app away in the recent apps: the notification goes, and another controller (for example the desktop app) can now connect.
 10. Rotate the phone and switch the system between light and dark: the remote follows, and the connection survives the rotation.
-11. Takeover: run the desktop app on a computer so that it is connected. On the phone enter the computer's address under "Other computers" and save; an invalid entry such as `http://x` is refused with a message. About 3 seconds after the app started searching (at once, if it has searched longer already) the display shows "Asking ... to release the speakers", the desktop app closes, and shortly after the phone shows "Connected".
-12. Start the desktop app again, wait until it is connected, then bring the phone app back to the screen: it takes the speakers over again.
-13. Close the phone app completely and reopen it: the saved list is still there.
-14. Press the display: the log opens and shows what happened so far (searching, connecting, the takeover); new lines appear by themselves. Close it with the cross or a tap outside.
+11. Takeover: run the desktop app on a computer so that it is connected. On the phone press Devices, enter the computer's address and press Add; an invalid entry such as `http://x` is refused with a message. About 3 seconds after the app started searching (at once, if it has searched longer already) the display shows "Asking ... to release the speakers", the desktop app shows "Disconnected" and a Reconnect key, and shortly after the phone shows "Connected".
+12. Press Reconnect on the desktop app (the phone's address must be on its Devices list): after about 3 seconds the phone shows "Disconnected" and the Reconnect key, and the desktop app connects. Press Reconnect on the phone: it takes the speakers over again.
+13. Open the address shown under "Web address" in a browser on a computer: the remote appears and controls the speakers, also while the phone's screen is off. Swipe the app away in the recent apps: the address no longer answers.
+14. While the phone shows "Disconnected", rotate it, press Home and return: it stays disconnected, and its notification says "Disconnected". Press Reconnect: it takes the speakers over.
+15. Close the phone app completely and reopen it: the saved list is still there.
+16. Press the display: the log opens and shows what happened so far (searching, connecting, the takeover); new lines appear by themselves. Close it with the cross or a tap outside.
 
 ## Troubleshooting
 
-- The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-computers) if another computer runs this app.
+- The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-devices) if another computer runs this app.
 - If your phone cannot load the page, check the firewall on the computer, and if you use a VPN enable "Allow LAN access" or split tunneling.
 - The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open `http://127.0.0.1:5000` in any browser.
 - On Windows, with `z407_console.exe`, clicking inside the terminal can pause the program; press Enter to resume it.

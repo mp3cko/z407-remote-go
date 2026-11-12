@@ -38,9 +38,27 @@ func (f *fakeSpeaker) got() []string {
 	defer f.mu.Unlock()
 	return append([]string(nil), f.calls...)
 }
-func (f *fakeSpeaker) Status() (bool, int) { return f.connected, f.volume }
+func (f *fakeSpeaker) Status() (bool, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.connected, f.volume
+}
 func (f *fakeSpeaker) Progress() (string, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.phase, f.problem
+}
+func (f *fakeSpeaker) Release() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.connected, f.phase, f.problem = false, "released", ""
+	f.calls = append(f.calls, "Release")
+}
+func (f *fakeSpeaker) Reconnect() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.phase = ""
+	f.calls = append(f.calls, "Reconnect")
 }
 func (f *fakeSpeaker) VolumeUp() error       { return f.rec("VolumeUp") }
 func (f *fakeSpeaker) VolumeDown() error     { return f.rec("VolumeDown") }

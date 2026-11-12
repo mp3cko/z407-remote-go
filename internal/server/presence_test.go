@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -390,5 +391,52 @@ func TestManifest(t *testing.T) {
 		if !strings.Contains(page, w) {
 			t.Errorf("page lacks %q", w)
 		}
+	}
+}
+
+// When the app stops, every page is told so before its stream ends: a page
+// on this machine closes its window, which the app cannot do itself when the
+// window is run by a browser that was already open. The server is set up
+// like the one in cmd/z407: the streams end with the app's context.
+func TestEventsSayByeWhenTheAppStops(t *testing.T) {
+	ctx, stop := context.WithCancel(context.Background())
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{
+		Handler:     New(&fakeSpeaker{}, quiet, WithPresence(NewPresence(0, nil))),
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
+	go func() { _ = srv.Serve(ln) }()
+
+	resp, err := http.Get("http://" + ln.Addr().String() + "/api/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if _, err := resp.Body.Read(make([]byte, 64)); err != nil {
+		t.Fatal(err)
+	}
+	stop()
+	shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutCtx); err != nil {
+		t.Errorf("shutdown: %v", err)
+	}
+	rest, _ := io.ReadAll(resp.Body)
+	if want := "event: bye\ndata: close\n\n"; !strings.HasSuffix(string(rest), want) {
+		t.Errorf("stream ended with %q, want %q", rest, want)
+	}
+}
+
+// A page on another machine is told too, but not to close: it is a tab in
+// somebody's browser, not this app's window.
+func TestEventsByeForRemotePage(t *testing.T) {
+	h := New(&fakeSpeaker{}, quiet, WithPresence(NewPresence(0, nil)))
+	rec, closeStream := openStream(t, h, "192.168.1.50:40000", "192.168.1.7:5000")
+	closeStream()
+	if got := rec.Body.String(); !strings.HasSuffix(got, "event: bye\ndata: \n\n") {
+		t.Errorf("stream ended with %q", got)
 	}
 }

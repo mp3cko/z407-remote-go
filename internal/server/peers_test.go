@@ -108,43 +108,54 @@ func TestPeersDefaultStore(t *testing.T) {
 	}
 }
 
-func TestShutdownEndpoint(t *testing.T) {
-	called := make(chan struct{})
-	// Works whether or not the speakers are connected.
-	h := New(&fakeSpeaker{}, quiet, WithShutdown(func() { close(called) }))
-	rec := do(h, "POST", "/api/shutdown")
-	m := decode(t, rec)
-	if rec.Code != 200 || len(m) != 1 || m["success"] != true {
+// Another device asks for the speakers: the app lets go of them and stays
+// open, its page says so, and "reconnect" takes them back.
+func TestDisconnectAndReconnect(t *testing.T) {
+	sp := &fakeSpeaker{connected: true, volume: 40}
+	h := New(sp, quiet)
+	rec := do(h, "POST", "/api/disconnect")
+	if m := decode(t, rec); rec.Code != 200 || len(m) != 1 || m["success"] != true {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 	}
-	select {
-	case <-called:
-	case <-time.After(2 * time.Second):
-		t.Fatal("shutdown function not called")
+	deadline := time.Now().Add(2 * time.Second)
+	for !reflect.DeepEqual(sp.got(), []string{"Release"}) {
+		if time.Now().After(deadline) {
+			t.Fatalf("speakers not released: %v", sp.got())
+		}
+		time.Sleep(time.Millisecond)
 	}
-	if rec := do(h, "GET", "/api/shutdown"); rec.Code != 405 {
-		t.Errorf("GET: code=%d", rec.Code)
+	if got := do(h, "GET", "/api/status").Body.String(); got != `{"connected":false,"note":"","phase":"released","problem":"","volume":40}`+"\n" {
+		t.Errorf("status while released: %s", got)
+	}
+	if rec := do(h, "POST", "/api/vol_up"); rec.Code != 404 {
+		t.Errorf("command while released: %d", rec.Code)
+	}
+
+	rec = do(h, "POST", "/api/reconnect")
+	if m := decode(t, rec); rec.Code != 200 || len(m) != 1 || m["success"] != true {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	}
+	if !reflect.DeepEqual(sp.got(), []string{"Release", "Reconnect"}) {
+		t.Errorf("calls: %v", sp.got())
+	}
+	if got := decode(t, do(h, "GET", "/api/status"))["phase"]; got != "waiting" {
+		t.Errorf("phase after reconnect: %v", got)
+	}
+	for _, path := range []string{"/api/disconnect", "/api/reconnect"} {
+		if rec := do(h, "GET", path); rec.Code != 405 {
+			t.Errorf("GET %s: code=%d", path, rec.Code)
+		}
 	}
 }
 
-func TestShutdownUnavailable(t *testing.T) {
-	sp := &fakeSpeaker{connected: true}
-	rec := do(New(sp, quiet), "POST", "/api/shutdown")
-	if m := decode(t, rec); rec.Code != 501 || m["success"] != false {
-		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
-	}
-	if len(sp.got()) != 0 {
-		t.Error("shutdown reached the speaker")
-	}
-}
-
-// The answer must be on the wire before the app goes down.
-func TestShutdownAnswersFirst(t *testing.T) {
-	block := make(chan struct{})
-	ts := httptest.NewServer(New(&fakeSpeaker{}, quiet, WithShutdown(func() { <-block })))
+// The caller must not wait for the link to close.
+func TestDisconnectAnswersFirst(t *testing.T) {
+	sp := &fakeSpeaker{}
+	sp.mu.Lock() // Release blocks
+	defer sp.mu.Unlock()
+	ts := httptest.NewServer(New(sp, quiet))
 	defer ts.Close()
-	defer close(block)
-	resp, err := (&http.Client{Timeout: 2 * time.Second}).Post(ts.URL+"/api/shutdown", "", nil)
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Post(ts.URL+"/api/disconnect", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,12 +167,13 @@ func TestShutdownAnswersFirst(t *testing.T) {
 
 func TestPeersEditorInPage(t *testing.T) {
 	page := do(New(&fakeSpeaker{}, quiet), "GET", "/").Body.String()
-	for _, w := range []string{"<summary>Other computers</summary>", "fetch('/api/peers')", "'/api/peers?list=' + encodeURIComponent("} {
+	for _, w := range []string{`id="devOpen"`, `<dialog id="devices"`, "fetch('/api/peers')", "'/api/peers?list=' + encodeURIComponent("} {
 		if !strings.Contains(page, w) {
 			t.Errorf("page lacks %q", w)
 		}
 	}
-	if i, j := strings.Index(page, "<summary>Troubleshooting</summary>"), strings.Index(page, "<summary>Other computers</summary>"); i < 0 || j < i {
-		t.Error("the editor should follow Troubleshooting")
+	// The key that opens the editor is on the remote itself, not below it.
+	if i, j := strings.Index(page, `id="devOpen"`), strings.Index(page, `class="panel"`); i < 0 || j < i {
+		t.Error("the Devices key should be on the remote")
 	}
 }

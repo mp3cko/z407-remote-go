@@ -3,11 +3,15 @@ package io.github.mp3cko.z407
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import io.github.mp3cko.z407.core.Addrs
 import io.github.mp3cko.z407.core.Api
+import io.github.mp3cko.z407.core.HttpServer
 import io.github.mp3cko.z407.core.LogHistory
 import io.github.mp3cko.z407.core.Notice
 import io.github.mp3cko.z407.core.PeerStore
+import io.github.mp3cko.z407.core.Peers
 import io.github.mp3cko.z407.core.SpeakerManager
+import io.github.mp3cko.z407.core.Summary
 import io.github.mp3cko.z407.core.Takeover
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -16,7 +20,8 @@ import java.net.URL
 /**
  * The app's one connection to the speakers and everything that answers the
  * page. It lives as long as the process, so the volume estimate survives
- * screen rotations and visits to other apps.
+ * screen rotations and visits to other apps. [RemoteService] keeps it
+ * working while the app is not on screen.
  */
 class Remote private constructor(context: Context) {
     companion object {
@@ -37,12 +42,36 @@ class Remote private constructor(context: Context) {
     private val takeover = Takeover(
         peers = store::load,
         connected = { manager.status().connected },
-        post = ::postShutdown,
+        post = ::postDisconnect,
         log = ::log,
         found = manager::found,
         note = notice::set,
     )
-    val api = Api(manager, store, notice::get, history)
+    private val assets = context.assets
+
+    /** Answers the page, inside the app and for callers on the network alike. */
+    val api = Api(
+        manager, store, notice::get, history, ::addrs,
+        // Closing the link takes a moment; the caller does not wait for it.
+        disconnect = { Thread(::release, "z407-release").start() },
+        reconnect = ::reconnect,
+        released = { released },
+    )
+    private val server = HttpServer(api, ::webFile, ::log)
+
+    @Volatile private var serving = false
+    /** Another device asked for the speakers and has them until the user reconnects. */
+    @Volatile private var released = false
+
+    private fun addrs(): List<String> =
+        if (serving) Addrs.lan().map { "http://$it:${Peers.DEFAULT_PORT}" } else emptyList()
+
+    /** The page ("") and the files next to it, for browsers on the network. */
+    private fun webFile(name: String): ByteArray? = try {
+        assets.open(if (name.isEmpty()) "index.html" else "static/$name").use { it.readBytes() }
+    } catch (_: IOException) {
+        null
+    }
 
     /** Logs to logcat and to the log viewer of the remote. */
     private fun log(line: String) {
@@ -56,34 +85,101 @@ class Remote private constructor(context: Context) {
     }
 
     private var threads: List<Thread> = emptyList()
+    private var active = false
+    /** The app came to the screen: the takeover thread starts a new session. */
+    @Volatile private var opened = false
 
-    /** Connects and stays connected. Called while the app is on screen. */
+    /** What the notification shows. */
+    fun summary(): Summary = Summary.of(manager.status(), released)
+
+    /** A key of the notification was pressed: [command] is the name the page uses ("vol_up"). */
+    fun press(command: String) {
+        Thread({ api.handle("POST", "/api/$command", null) }, "z407-key").start()
+    }
+
+    /**
+     * The app came to the screen. If it is still looking for the speakers,
+     * the other devices are asked for them once more.
+     */
+    fun opened() {
+        opened = true
+    }
+
+    /**
+     * Connects and stays connected, and serves the remote to the network,
+     * until [stop].
+     */
     @Synchronized
     fun start() {
+        if (!serving) {
+            try {
+                server.start(Peers.DEFAULT_PORT)
+                serving = true
+                log("Serving the remote on port ${Peers.DEFAULT_PORT}")
+            } catch (e: IOException) {
+                log("Port ${Peers.DEFAULT_PORT} is taken (${e.message}): other devices cannot reach this app")
+            }
+        }
+        active = true
+        if (!released) connect()
+    }
+
+    private fun connect() {
         if (threads.isNotEmpty()) return
         manager.resume()
-        takeover.newSession()
+        opened = true
         threads = listOf(
             Thread({ manager.run() }, "z407-speaker"),
             Thread({
                 try {
                     while (true) {
+                        if (opened) {
+                            opened = false
+                            takeover.newSession()
+                        }
                         takeover.check(SystemClock.elapsedRealtime())
                         Thread.sleep(Takeover.CHECK_INTERVAL_MILLIS)
                     }
                 } catch (_: InterruptedException) {
-                    // stop()
+                    // disconnect()
                 }
             }, "z407-takeover"),
         ).onEach { it.start() }
     }
 
     /**
-     * Releases the speakers, so that other controllers can connect while the
-     * app is in the background (the speakers accept only one).
+     * Releases the speakers and stops serving: the app was removed from the
+     * recent apps. Opened again it connects, also after another device had
+     * asked for the speakers.
      */
     @Synchronized
     fun stop() {
+        server.stop()
+        serving = false
+        active = false
+        released = false
+        disconnect()
+    }
+
+    /** POST /api/disconnect: lets go of the speakers until the user reconnects. */
+    @Synchronized
+    private fun release() {
+        if (!active || released) return // the app was closed meanwhile, or was asked twice
+        released = true
+        log("Another device asked for the speakers: disconnected until you reconnect")
+        disconnect()
+    }
+
+    /** POST /api/reconnect: takes the speakers back, asking the other computers for them again. */
+    @Synchronized
+    private fun reconnect() {
+        if (!released) return
+        released = false
+        log("Reconnecting")
+        if (active) connect()
+    }
+
+    private fun disconnect() {
         manager.stop()
         threads.forEach { it.interrupt() }
         threads.forEach {
@@ -96,9 +192,9 @@ class Remote private constructor(context: Context) {
         threads = emptyList()
     }
 
-    /** Sends POST /api/shutdown to a desktop instance; returns e.g. `200 {"success":true}`. */
-    private fun postShutdown(peer: String): String {
-        val conn = URL("http://$peer/api/shutdown").openConnection() as HttpURLConnection
+    /** Sends POST /api/disconnect to another instance; returns e.g. `200 {"success":true}`. */
+    private fun postDisconnect(peer: String): String {
+        val conn = URL("http://$peer/api/disconnect").openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
             conn.connectTimeout = Takeover.PEER_TIMEOUT_MILLIS

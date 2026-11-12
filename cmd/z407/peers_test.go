@@ -51,30 +51,72 @@ func configIn(dir string) func() (string, error) {
 	return func() (string, error) { return dir, nil }
 }
 
-func TestShutdownRequestStopsCleanly(t *testing.T) {
+// Another device asks for the speakers: they are released, and the app and
+// its window stay, so that the user can take the speakers back.
+func TestDisconnectRequestKeepsTheAppOpen(t *testing.T) {
 	fb := newFakeBackend()
 	o := &fakeOpener{proc: newFakeProc()}
 	a := startApp(t, deps{sp: fb, win: o})
-	code, m := a.request("POST", "/api/shutdown")
+	code, m := a.request("POST", "/api/disconnect")
 	if code != 200 || m["success"] != true {
 		t.Fatalf("answer: %d %v", code, m)
 	}
-	a.waitExit()
-	// The same path as closing the window: the speaker link is released
-	// (Run returns) and the window goes away.
-	select {
-	case <-fb.done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("the speaker connection was not shut down")
+	deadline := time.Now().Add(2 * time.Second)
+	for !fb.released.Load() {
+		if time.Now().After(deadline) {
+			t.Fatal("the speakers were not released")
+		}
+		time.Sleep(time.Millisecond)
 	}
+	if _, m := a.request("GET", "/api/status"); m["phase"] != "released" {
+		t.Errorf("status: %v", m)
+	}
+	a.stillRunning(100 * time.Millisecond)
 	select {
 	case <-o.proc.closed:
-	case <-time.After(2 * time.Second):
-		t.Fatal("the window was left open")
+		t.Fatal("the window was closed")
+	default:
 	}
-	if !strings.Contains(a.out.String(), "Shutdown requested") {
-		t.Errorf("output: %s", a.out.String())
+	if code, _ := a.request("POST", "/api/reconnect"); code != 200 || fb.released.Load() {
+		t.Fatalf("reconnect: %d, released=%v", code, fb.released.Load())
 	}
+}
+
+// While this copy has let go of the speakers it asks nobody for them; told
+// to reconnect, it asks again.
+func TestTakeoverWaitsWhileReleasedAndAsksAgainAfterReconnect(t *testing.T) {
+	var hits atomic.Int32
+	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer peer.Close()
+	peerAddr := strings.TrimPrefix(peer.URL, "http://")
+	waitHits := func(n int32) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for hits.Load() < n {
+			if time.Now().After(deadline) {
+				t.Fatalf("peer asked %d times, want %d", hits.Load(), n)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+
+	d := deps{
+		sp:            &searchingBackend{fakeBackend: newFakeBackend()},
+		takeover:      peers.Takeover{Timeout: 30 * time.Millisecond},
+		takeoverEvery: 5 * time.Millisecond,
+	}
+	a := startApp(t, d, "--peers", peerAddr)
+	waitHits(1)
+	a.request("POST", "/api/disconnect")
+	time.Sleep(150 * time.Millisecond)
+	if n := hits.Load(); n != 1 {
+		t.Fatalf("asked %d times while released", n)
+	}
+	a.request("POST", "/api/reconnect")
+	waitHits(2)
 }
 
 func TestPeersSavedAcrossRestart(t *testing.T) {
@@ -204,7 +246,7 @@ func TestTakeoverAsksPeersWhenSpeakersAreNotFound(t *testing.T) {
 	a.stillRunning(100 * time.Millisecond) // it keeps searching
 	mu.Lock()
 	defer mu.Unlock()
-	if !reflect.DeepEqual(hits, []string{"POST /api/shutdown"}) {
+	if !reflect.DeepEqual(hits, []string{"POST /api/disconnect"}) {
 		t.Fatalf("peer got %v", hits)
 	}
 	if !strings.Contains(a.out.String(), "asked "+peerAddr+" to release them") {
@@ -213,7 +255,7 @@ func TestTakeoverAsksPeersWhenSpeakersAreNotFound(t *testing.T) {
 }
 
 func TestTakeoverNeverAsksItself(t *testing.T) {
-	// Listing our own address must not make the app shut itself down. The
+	// Listing our own address must not make the app disconnect itself. The
 	// port has to be known before the start, so pick a free one first.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -253,8 +295,8 @@ func TestTakeoverNeverAsksItself(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	a.stillRunning(100 * time.Millisecond)
-	if strings.Contains(out.String(), "Shutdown requested") {
-		t.Fatalf("the app asked itself to shut down:\n%s", out.String())
+	if strings.Contains(out.String(), "POST /api/disconnect") {
+		t.Fatalf("the app asked itself to disconnect:\n%s", out.String())
 	}
 }
 

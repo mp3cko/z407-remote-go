@@ -17,8 +17,16 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
     <!-- Asking desktop computers on the LAN to release the speakers
-         (POST /api/shutdown over plain HTTP). -->
+         (POST /api/shutdown over plain HTTP), and serving the remote to the
+         LAN. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Staying connected, and reachable for other devices, while the app is
+         not on screen; and the notification that says so (Android 13+ asks
+         the user for it). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
@@ -40,5 +48,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".RemoteService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 </manifest>

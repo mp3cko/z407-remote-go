@@ -1,7 +1,8 @@
 // Package peers handles the "other computers" of an installation: machines
 // that may run this app too. The speakers accept one Bluetooth LE controller
-// at a time, so an instance that cannot find them asks its peers to quit
-// (POST /api/shutdown) and thereby release the link. The newest instance wins.
+// at a time, so an instance that cannot find them asks its peers to
+// disconnect (POST /api/disconnect) and thereby release the link. The newest
+// instance wins.
 package peers
 
 import (

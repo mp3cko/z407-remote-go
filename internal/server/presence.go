@@ -129,8 +129,12 @@ func hostIP(addr string) net.IP {
 	return net.ParseIP(host)
 }
 
-// events is the long-lived stream every page holds open. It carries no data;
-// its existence tells the app that the page is still there.
+// events is the long-lived stream every page holds open. Its existence tells
+// the app that the page is still there. The one event it carries is "bye",
+// sent when the app stops: the page then says so, and a page on this machine
+// ("close") closes its window. The app cannot always do that itself: a
+// window that the browser handed to a copy already running has no process
+// the app could end.
 func (s *srv) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
@@ -139,9 +143,16 @@ func (s *srv) events(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("retry: 1000\n\n: connected\n\n"))
 	_ = http.NewResponseController(w).Flush()
 
-	if s.presence != nil && sameMachine(r) {
-		s.presence.join()
-		defer s.presence.leave()
+	bye := "event: bye\ndata: \n\n"
+	if sameMachine(r) {
+		bye = "event: bye\ndata: close\n\n"
+		if s.presence != nil {
+			s.presence.join()
+			defer s.presence.leave()
+		}
 	}
+	// Done also when the page has left; the write then goes nowhere.
 	<-r.Context().Done()
+	_, _ = w.Write([]byte(bye))
+	_ = http.NewResponseController(w).Flush()
 }

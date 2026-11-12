@@ -52,8 +52,10 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 			`{"error":"\"http://bad/\" is not a valid address (leave out http:// and any path). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000","success":false}`},
 		{"escaping", connected, "POST", "/api/peers?list=" + q("<a&b>"), 400,
 			`{"error":"\"\u003ca\u0026b\u003e\" is not a valid address (the name may only contain letters, digits, hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000","success":false}`},
-		{"shutdown unavailable", connected, "POST", "/api/shutdown", 501,
-			`{"error":"Shutdown is not available","success":false}`},
+		{"disconnect", connected, "POST", "/api/disconnect", 200, `{"success":true}`},
+		{"reconnect", connected, "POST", "/api/reconnect", 200, `{"success":true}`},
+		{"status released", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, phase: "released"} },
+			"GET", "/api/status", 200, `{"connected":false,"note":"","phase":"released","problem":"","volume":50}`},
 	} {
 		rec := do(New(c.h(), quiet), c.method, c.path)
 		if rec.Code != c.code || rec.Body.String() != c.body+"\n" {

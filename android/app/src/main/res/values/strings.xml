@@ -7,4 +7,10 @@
     <string name="permission_retry">Ask again</string>
     <string name="permission_settings">App settings</string>
     <string name="permission_close">Not now</string>
+    <string name="channel_name">Remote running</string>
+    <string name="channel_description">Shown while the app holds the speakers and serves the remote in the background.</string>
+    <string name="notification_title">Z407 · %1$s</string>
+    <string name="key_volume_down">Vol −</string>
+    <string name="key_play_pause">Play / Pause</string>
+    <string name="key_volume_up">Vol +</string>
 </resources>

@@ -28,12 +28,17 @@ const (
 	CheckInterval = time.Second
 )
 
-// Takeover asks peers to quit when the speakers cannot be found. Every peer
-// is asked at most once per run: two instances that list each other would
-// otherwise keep shutting each other down. Set the exported fields before use.
+// Takeover asks peers to disconnect when the speakers cannot be found. Every
+// peer is asked at most once per search: two instances that list each other
+// would otherwise keep taking the speakers from each other. A new search
+// begins when this instance, having released the speakers itself, is told to
+// reconnect. Set the exported fields before use.
 type Takeover struct {
 	Peers     func() []string // current list, "host:port"
 	Connected func() bool     // are the speakers connected?
+	// Released reports whether this instance has let go of the speakers for
+	// another device. It then asks nobody. nil = it never has.
+	Released func() bool
 	// Found reports whether the connection attempt under way has seen the
 	// speakers. nil = it never has.
 	Found func() bool
@@ -42,7 +47,7 @@ type Takeover struct {
 	// IsSelf reports whether peer is this very instance, which must never be
 	// asked. nil = nothing is.
 	IsSelf func(peer string) bool
-	// Post sends the shutdown request and describes the answer. nil = HTTP.
+	// Post sends the disconnect request and describes the answer. nil = HTTP.
 	Post func(ctx context.Context, peer string) (answer string, err error)
 	Log  func(level logx.Level, format string, args ...any)
 	// Timeout, FoundTimeout and PeerTimeout default to SearchTimeout,
@@ -53,7 +58,7 @@ type Takeover struct {
 
 	searching bool
 	since     time.Time       // start of the current search
-	asked     map[string]bool // peers dealt with in this run
+	asked     map[string]bool // peers dealt with in this search
 }
 
 func (t *Takeover) logf(level logx.Level, format string, args ...any) {
@@ -66,6 +71,10 @@ func (t *Takeover) logf(level logx.Level, format string, args ...any) {
 // whole timeout, asks every peer not asked before. Run calls it regularly;
 // it must not be called concurrently.
 func (t *Takeover) Check(ctx context.Context, now time.Time) {
+	if t.Released != nil && t.Released() {
+		t.searching, t.asked = false, nil
+		return
+	}
 	if t.Connected() {
 		t.searching = false
 		return
@@ -97,7 +106,7 @@ func (t *Takeover) Check(ctx context.Context, now time.Time) {
 		}
 		t.asked[peer] = true
 		if t.IsSelf != nil && t.IsSelf(peer) {
-			t.logf(logx.Info, "Other computers: %s is this computer, skipping it", peer)
+			t.logf(logx.Info, "Other devices: %s is this computer, skipping it", peer)
 			continue
 		}
 		t.ask(ctx, peer)
@@ -113,14 +122,14 @@ func (t *Takeover) ask(ctx context.Context, peer string) {
 	defer cancel()
 	post := t.Post
 	if post == nil {
-		post = PostShutdown
+		post = PostDisconnect
 	}
 	t.note("Asking %s to release the speakers", peer)
 	answer, err := post(ctx, peer)
 	switch {
 	case err != nil:
 		// Normal: that computer is off, or the app is not running there.
-		t.logf(logx.Info, "Other computers: %s did not answer (%v)", peer, err)
+		t.logf(logx.Info, "Other devices: %s did not answer (%v)", peer, err)
 		t.note("%s did not answer", peer)
 		return
 	case strings.HasPrefix(answer, "200"):
@@ -154,10 +163,10 @@ func (t *Takeover) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// PostShutdown sends POST /api/shutdown to peer and returns its answer, e.g.
+// PostDisconnect sends POST /api/disconnect to peer and returns its answer, e.g.
 // `200 {"success":true}`.
-func PostShutdown(ctx context.Context, peer string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+peer+"/api/shutdown", nil)
+func PostDisconnect(ctx context.Context, peer string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+peer+"/api/disconnect", nil)
 	if err != nil {
 		return "", err
 	}

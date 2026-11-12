@@ -3,23 +3,23 @@ package io.github.mp3cko.z407.core
 import java.io.IOException
 
 /**
- * Asks peers (desktop computers running the app) to quit when the speakers
+ * Asks peers (other devices running the app) to disconnect when the speakers
  * cannot be found: the speakers accept one controller at a time, and a
  * computer that was left running holds the link. A port of
  * internal/peers/takeover.go.
  *
- * Every peer is asked at most once per session, a session being one stay of
- * the app on screen ([newSession]). The desktop app, whose instances can shut
- * each other down, asks once per run to rule out a loop; the phone cannot be
- * shut down by anyone, and a process that Android keeps for days must still
- * be able to take the speakers over the next time it is opened.
+ * Every peer is asked at most once per session ([newSession]): one stay of
+ * the app on screen, or one press of Reconnect. An app that was asked to
+ * disconnect searches no more until then, so two that list each other cannot
+ * keep taking the speakers from each other. And a process that Android keeps
+ * for days can still take the speakers over the next time it is opened.
  *
  * Not thread-safe: call its functions from one thread at a time.
  */
 class Takeover(
     private val peers: () -> List<String>,
     private val connected: () -> Boolean,
-    /** Sends POST /api/shutdown to "host:port" and describes the answer. */
+    /** Sends POST /api/disconnect to "host:port" and describes the answer. */
     private val post: (peer: String) -> String,
     private val log: (String) -> Unit = {},
     private val timeoutMillis: Long = SEARCH_TIMEOUT_MILLIS,
@@ -76,7 +76,7 @@ class Takeover(
                 log("Speakers not found; asked $peer to release them: $answer")
             } catch (e: IOException) {
                 // Normal: that computer is off, or the app is not running there.
-                log("Other computers: $peer did not answer (${e.message})")
+                log("Other devices: $peer did not answer (${e.message})")
                 note("$peer did not answer")
             }
         }
