@@ -36,7 +36,11 @@ import (
 
 const (
 	shutdownWait = 5 * time.Second
-	defaultPort  = peers.DefaultPort
+	// portWait is how long a busy port is tried again. A copy whose window
+	// was just closed still holds the port until the browser has exited,
+	// which takes a moment: one started again at once waits for it.
+	portWait    = 5 * time.Second
+	defaultPort = peers.DefaultPort
 )
 
 // backend is a speaker connection manager that can be run in the background.
@@ -59,6 +63,8 @@ type deps struct {
 	// waitLimit bounds the wait for background goroutines at shutdown
 	// (default shutdownWait).
 	waitLimit time.Duration
+	// portWait bounds the wait for a busy port (default portWait).
+	portWait time.Duration
 	// win opens the remote in a window on this machine; nil = never.
 	win windowOpener
 	log *logx.Logger // nil = colored output on stderr
@@ -167,7 +173,11 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		}
 	}
 
-	ln, err := net.Listen("tcp", net.JoinHostPort(*ip, strconv.Itoa(*port)))
+	wait := d.portWait
+	if wait <= 0 {
+		wait = portWait
+	}
+	ln, err := listen(net.JoinHostPort(*ip, strconv.Itoa(*port)), wait, lg)
 	if err != nil {
 		return err
 	}
@@ -381,13 +391,37 @@ func errorBanner(err error) string {
 		portHint(err)
 }
 
+// listen listens on addr, trying a busy port again for up to wait.
+func listen(addr string, wait time.Duration, lg *logx.Logger) (net.Listener, error) {
+	deadline := time.Now().Add(wait)
+	logged := false
+	for {
+		ln, err := net.Listen("tcp", addr)
+		if err == nil || !addrInUse(err) || !time.Now().Before(deadline) {
+			return ln, err
+		}
+		if !logged {
+			lg.Infof("Port %s is in use, waiting up to %v for it to be free (a copy that was just closed may still be stopping)", addr, wait)
+			logged = true
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// addrInUse reports whether err says the address is taken.
+func addrInUse(err error) bool {
+	return errors.Is(err, syscall.EADDRINUSE) || strings.Contains(err.Error(), "address already in use") ||
+		strings.Contains(err.Error(), "Only one usage of each socket address")
+}
+
 // portHint explains the common "address already in use" case, including the
 // WSL quirk where the Windows exe and the Linux binary share localhost ports.
 func portHint(err error) string {
-	if !errors.Is(err, syscall.EADDRINUSE) && !strings.Contains(err.Error(), "address already in use") &&
-		!strings.Contains(err.Error(), "Only one usage of each socket address") {
+	if !addrInUse(err) {
 		return ""
 	}
-	return "\nPort already in use. Try another one, e.g.:  z407 --port 5001\n" +
-		"(On WSL the Windows build may already be running on this port.)\n"
+	return "\nThe port is still in use after waiting " + portWait.String() + ". Most likely another copy of\n" +
+		"Z407 Remote is running on it: one started with --no-window, one whose\n" +
+		"remote is open in a browser tab, or (on WSL) the Windows build.\n" +
+		"Stop that copy, or start this one on another port, e.g.:  z407 --port 5001\n"
 }

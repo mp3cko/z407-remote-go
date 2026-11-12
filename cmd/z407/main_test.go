@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
 
 type safeBuf struct {
@@ -335,5 +337,39 @@ func TestLogFlagRejectsUnknownValue(t *testing.T) {
 	err := runWith(context.Background(), []string{"--log", "nonsense"}, io.Discard, deps{})
 	if err == nil || !strings.Contains(err.Error(), "--log") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestListenWaitsForBusyPort(t *testing.T) {
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := busy.Addr().String()
+	var out bytes.Buffer
+	lg := logx.NewWriter(&out, false)
+
+	// Freed while waiting, as by a copy that is still stopping.
+	time.AfterFunc(300*time.Millisecond, func() { _ = busy.Close() })
+	ln, err := listen(addr, 3*time.Second, lg)
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	if !strings.Contains(out.String(), "is in use, waiting") {
+		t.Errorf("log: %q", out.String())
+	}
+
+	// Never freed: the error comes after the wait and is explained.
+	started := time.Now()
+	_, err = listen(addr, 400*time.Millisecond, lg)
+	_ = ln.Close()
+	if err == nil {
+		t.Fatal("listen on a busy port succeeded")
+	}
+	if waited := time.Since(started); waited < 400*time.Millisecond {
+		t.Errorf("gave up after %v", waited)
+	}
+	if hint := portHint(err); !strings.Contains(hint, "another copy") {
+		t.Errorf("hint: %q", hint)
 	}
 }
