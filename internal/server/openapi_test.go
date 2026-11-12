@@ -18,6 +18,8 @@ func TestOpenAPICoversRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A Windows checkout may have turned the line ends into CRLF.
+	spec = []byte(strings.ReplaceAll(string(spec), "\r\n", "\n"))
 	routes := regexp.MustCompile(`mux\.HandleFunc\("(GET|POST) (/api/[^"]*)"`).FindAllStringSubmatch(string(src), -1)
 	if len(routes) == 0 {
 		t.Fatal("no routes found in server.go")
