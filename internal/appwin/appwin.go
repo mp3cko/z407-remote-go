@@ -30,6 +30,9 @@ const (
 // entry naming it (StartupWMClass) lends the window its icon.
 const WindowClass = "z407"
 
+// WindowTitle is the title of the app window: the title of the remote's page.
+const WindowTitle = "Z407 Remote"
+
 // Process is a started browser.
 type Process interface {
 	// Wait blocks until the process exits.
@@ -48,6 +51,9 @@ type System struct {
 	CacheDir func() (string, error)
 	HomeDir  func() (string, error)
 	Start    func(path string, args []string) (Process, error)
+	// Brand, when set, claims the app window for this program on the
+	// taskbar once it shows up (Windows); OpenApp runs it in the background.
+	Brand func()
 }
 
 // Real returns the System backed by the running machine.
@@ -63,6 +69,7 @@ func Real(goos string) System {
 		CacheDir: os.UserCacheDir,
 		HomeDir:  os.UserHomeDir,
 		Start:    startProcess,
+		Brand:    brandTaskbar,
 	}
 }
 
@@ -219,7 +226,11 @@ func (s System) OpenApp(url string, port int) (Process, error) {
 	if s.GOOS != "windows" && s.GOOS != "darwin" {
 		args = append(args, "--class="+WindowClass)
 	}
-	return s.Start(browser, args)
+	p, err := s.Start(browser, args)
+	if err == nil && s.Brand != nil {
+		go s.Brand()
+	}
+	return p, err
 }
 
 // DefaultBrowserCommand returns the command that opens url in the system
