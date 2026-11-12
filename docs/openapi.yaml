@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Z407 Remote HTTP API
-  version: 0.1.2
+  version: 0.1.3
   summary: Control Logitech Z407 speakers through the Z407 Remote app.
   description: |
     The API of the Z407 Remote app (desktop and Android), the same one the
