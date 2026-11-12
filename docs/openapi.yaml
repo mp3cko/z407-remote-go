@@ -1,0 +1,358 @@
+openapi: 3.1.0
+info:
+  title: Z407 Remote HTTP API
+  version: 0.1.2
+  summary: Control Logitech Z407 speakers through the Z407 Remote app.
+  description: |
+    The API of the Z407 Remote app (desktop and Android), the same one the
+    remote's page uses. The app serves it on port 5000 by default
+    (`z407 --port` changes that).
+
+    There is no authentication: anyone who can reach the port can control
+    the speakers, read the app's log and make the app let go of the
+    speakers. Keep it on a network you trust.
+
+    The speakers accept one controller at a time. While the app is not
+    connected to them, the commands under `/api/{command}` answer 404.
+  license:
+    name: MIT
+    url: https://github.com/mp3cko/z407-remote-go/blob/main/LICENSE
+externalDocs:
+  description: README
+  url: https://github.com/mp3cko/z407-remote-go#readme
+servers:
+  - url: http://127.0.0.1:5000
+    description: The app on this machine
+  - url: http://{host}:{port}
+    description: The app on another device
+    variables:
+      host:
+        default: 192.168.1.20
+      port:
+        default: "5000"
+# No authentication: see the description above.
+security: []
+tags:
+  - name: Speakers
+    description: Commands sent to the speakers, and their state.
+  - name: Sharing
+    description: Handing the speakers over between devices running the app.
+  - name: App
+    description: The app itself.
+
+paths:
+  /api/status:
+    get:
+      tags: [Speakers]
+      operationId: getStatus
+      summary: State of the connection and the volume
+      description: The remote's page asks for this about once a second.
+      responses:
+        "200":
+          description: The current state.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+              examples:
+                connected:
+                  value: { connected: true, note: "", phase: connected, problem: "", volume: 50 }
+                searching:
+                  value: { connected: false, note: "", phase: searching, problem: "", volume: 50 }
+                released:
+                  value: { connected: false, note: "", phase: released, problem: "", volume: 50 }
+
+  /api/{command}:
+    post:
+      tags: [Speakers]
+      operationId: sendCommand
+      summary: Send a command to the speakers
+      description: |
+        Sends one key press to the speakers. The volume the app reports is
+        its own estimate: the speakers do not tell it.
+
+        `factory_reset` erases the speakers' pairings; `bluetooth_pair` puts
+        them in pairing mode.
+      parameters:
+        - name: command
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Command" }
+      responses:
+        "200":
+          description: The command was sent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+        "400":
+          description: Unknown command.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
+              example: { success: false, error: Unknown command }
+        "404":
+          description: The app is not connected to the speakers.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
+              example: { success: false, error: Speakers not connected. Waiting for background connection... }
+        "500":
+          description: Sending the command failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
+
+  /api/disconnect:
+    post:
+      tags: [Sharing]
+      operationId: disconnect
+      summary: Let go of the speakers
+      description: |
+        The app lets go of the speakers, so that another device can connect,
+        and stays open. It does not try to connect again until
+        `/api/reconnect`; meanwhile `/api/status` reports the phase
+        `released`. A copy of the app that cannot find the speakers sends
+        this to the devices on its list. The answer comes before the
+        speakers are free, which takes a moment.
+      responses:
+        "200":
+          description: The app is letting go.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+
+  /api/reconnect:
+    post:
+      tags: [Sharing]
+      operationId: reconnect
+      summary: Take the speakers back
+      description: |
+        Ends what `/api/disconnect` began: the app looks for the speakers
+        again and, if another device holds them, asks the devices on its
+        list to let go.
+      responses:
+        "200":
+          description: The app is connecting.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+
+  /api/peers:
+    get:
+      tags: [Sharing]
+      operationId: listPeers
+      summary: The other devices running the app
+      description: The devices asked for the speakers when this one cannot find them.
+      responses:
+        "200":
+          description: The list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [peers, fixed]
+                properties:
+                  peers:
+                    type: array
+                    items: { type: string }
+                    description: Devices as host:port.
+                    examples: [["living-room-pc:5000", "192.168.1.20:5000"]]
+                  fixed:
+                    type: boolean
+                    description: The list was given with `--peers` and cannot be changed here.
+    post:
+      tags: [Sharing]
+      operationId: savePeers
+      summary: Replace the list of other devices
+      description: |
+        Saves the list, which the app keeps across restarts. It travels in
+        the query string, not the body: the Android app, which shows the same
+        page, cannot read the body of the requests it answers.
+      parameters:
+        - name: list
+          in: query
+          required: true
+          description: |
+            Comma-separated devices, each a name or IP address, optionally
+            with a port (default 5000). Empty clears the list.
+          schema: { type: string }
+          example: living-room-pc,192.168.1.20:5001
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, peers]
+                properties:
+                  success: { type: boolean, const: true }
+                  peers:
+                    type: array
+                    items: { type: string }
+                    description: The saved list, as host:port.
+        "400":
+          description: An entry is not a valid address.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
+        "409":
+          description: The list was given with `--peers` and cannot be changed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
+
+  /api/addrs:
+    get:
+      tags: [App]
+      operationId: listAddrs
+      summary: Addresses other devices can open the remote at
+      responses:
+        "200":
+          description: The addresses, best guess first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [urls]
+                properties:
+                  urls:
+                    type: array
+                    items: { type: string, format: uri }
+                    examples: [["http://192.168.1.20:5000"]]
+
+  /api/log:
+    get:
+      tags: [App]
+      operationId: getLog
+      summary: The app's recent log lines
+      description: |
+        The last 500 lines of the log. Ask again with `after` set to the
+        `next` of the previous answer to get only the lines added since.
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: Line number; only later lines are returned. Default 0, all lines.
+          schema: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: The lines.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [lines, next]
+                properties:
+                  lines:
+                    type: array
+                    items: { $ref: "#/components/schemas/LogLine" }
+                  next:
+                    type: integer
+                    description: Number of the last line; pass it as `after` next time.
+
+  /api/events:
+    get:
+      tags: [App]
+      operationId: events
+      summary: Event stream that lasts as long as the app
+      description: |
+        A server-sent event stream that sends nothing until the app stops,
+        and then an event `bye`. Its data is `close` for pages on the same
+        machine as the app, which then close their window, and empty for
+        others. While a page on the same machine holds the stream open, an
+        app that runs in a browser tab keeps running.
+      responses:
+        "200":
+          description: The stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: "retry: 1000\n\n: connected\n\nevent: bye\ndata: close\n\n"
+
+  /:
+    get:
+      tags: [App]
+      operationId: getRemote
+      summary: The remote's page
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+
+components:
+  schemas:
+    Command:
+      type: string
+      enum:
+        - vol_up
+        - vol_down
+        - bass_up
+        - bass_down
+        - play_pause
+        - next_speaker
+        - prev_speaker
+        - input_bluetooth
+        - input_aux
+        - input_usb
+        - bluetooth_pair
+        - factory_reset
+      description: |
+        `next_speaker` and `prev_speaker` skip to the next and previous track.
+        `factory_reset` erases the speakers' pairings.
+
+    Status:
+      type: object
+      required: [connected, note, phase, problem, volume]
+      properties:
+        connected:
+          type: boolean
+        phase:
+          type: string
+          enum: [connected, searching, connecting, waiting, released]
+          description: |
+            `searching`: looking for the speakers. `connecting`: found them,
+            setting up the connection. `waiting`: for the next attempt after
+            one failed. `released`: let go of them on `/api/disconnect`.
+        problem:
+          type: string
+          description: What went wrong with the last attempt, empty if nothing.
+          examples: ["Speakers not found", "Bluetooth is off or missing", "Could not connect"]
+        note:
+          type: string
+          description: A passing message for the display, such as what a takeover is doing.
+        volume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: The app's estimate of the volume.
+
+    LogLine:
+      type: object
+      required: [n, time, level, text]
+      properties:
+        n:
+          type: integer
+          description: Line number, counting from 1 since the app started.
+        time:
+          type: string
+          description: Local time, HH:MM:SS.
+          examples: ["22:14:33"]
+        level:
+          type: string
+          enum: [info, ok, warn, error]
+        text:
+          type: string
+
+    Success:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+
+    Failure:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, const: false }
+        error: { type: string }

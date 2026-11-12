@@ -40,7 +40,7 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and make the app let go of the speakers (`POST /api/disconnect`, see [Several computers](#several-devices)).
+While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and make the app let go of the speakers (`POST /api/disconnect`, see [Several computers](#several-devices)). The whole HTTP API is described in [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.1), for scripts and home automation.
 
 The display of the remote tells what the app is doing: "Searching…", "Connecting…", "Connected", and above that what is in the way ("Speakers not found", "Bluetooth is off or missing") or what is being done about it ("Asking living-room-pc:5000 to release the speakers"). Press the display to open the log: the last 500 lines, updated as they come. No terminal is needed for that, on any platform.
 
