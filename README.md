@@ -141,26 +141,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 The app has no copy of the remote's page: the build takes `internal/server/index.html` from this repository. `./gradlew assembleRelease -PversionName=1.2.3` builds a release APK; it is signed with the key named by the environment variables `Z407_KEYSTORE_FILE`, `Z407_KEYSTORE_PASSWORD`, `Z407_KEY_ALIAS` and `Z407_KEY_PASSWORD`, or with the debug key when they are not set. The release workflow reads the key from the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`.
 
-### Manual test checklist
-
-The Bluetooth side cannot be tested automatically. With a phone and the speakers:
-
-1. Fresh install, first start: the permission prompt appears. Refuse it: a dialog explains what will not work and offers to ask again. Grant it. On Android 13 and newer a second prompt asks for notifications: allow it, and the notification "Z407" appears.
-2. With Bluetooth switched off, start the app: it offers to switch Bluetooth on.
-3. Speakers on, nothing else connected to their control channel: within about 15 seconds the display shows "Connected" and the Signal lamp is green.
-4. Volume up and down: the speakers react and the volume estimate moves in steps of 5. Bass up and down, play/pause, next, previous: the speakers react.
-5. BT, AUX, USB: the speakers switch input and the lamp above the pressed key lights.
-6. Pair: after confirming, the speakers enter pairing mode. (Reset erases the speakers' pairings; test it only if you mean to.)
-7. Leave the app open for five minutes: it stays connected (keep-alives are answered).
-8. Switch the speakers off: the display shows "Not connected". Switch them on: the app reconnects by itself.
-9. Press Home, then turn the screen off for a minute: the notification "Z407 · Connected" stays, and its three keys (volume down, play/pause, volume up) work; the volume in its text follows. Tap it: the app opens. Swipe the app away in the recent apps: the notification goes, and another controller (for example the desktop app) can now connect.
-10. Rotate the phone and switch the system between light and dark: the remote follows, and the connection survives the rotation.
-11. Takeover: run the desktop app on a computer so that it is connected. On the phone press Devices, enter the computer's address and press Add; an invalid entry such as `http://x` is refused with a message. About 3 seconds after the app started searching (at once, if it has searched longer already) the display shows "Asking ... to release the speakers", the desktop app shows "Disconnected" and a Reconnect key, and shortly after the phone shows "Connected".
-12. Press Reconnect on the desktop app (the phone's address must be on its Devices list): after about 3 seconds the phone shows "Disconnected" and the Reconnect key, and the desktop app connects. Press Reconnect on the phone: it takes the speakers over again.
-13. Open the address shown under "Web address" in a browser on a computer: the remote appears and controls the speakers, also while the phone's screen is off. Swipe the app away in the recent apps: the address no longer answers.
-14. While the phone shows "Disconnected", rotate it, press Home and return: it stays disconnected, and its notification says "Disconnected". Press Reconnect: it takes the speakers over.
-15. Close the phone app completely and reopen it: the saved list is still there.
-16. Press the display: the log opens and shows what happened so far (searching, connecting, the takeover); new lines appear by themselves. Close it with the cross or a tap outside.
+The Bluetooth side cannot be tested automatically; [android/TESTING.md](android/TESTING.md) lists what to check by hand with a phone and the speakers.
 
 ## Troubleshooting
 
