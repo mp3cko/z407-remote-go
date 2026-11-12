@@ -91,6 +91,7 @@ class MainActivity : Activity() {
         matchSystemBarIcons()
 
         web.loadUrl("https://$HOST/")
+        remote.onQuit = { runOnUiThread { finishAndRemoveTask() } }
     }
 
     /** Answers every request of the page; nothing of it reaches the network. */
@@ -159,6 +160,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (!isChangingConfigurations) remote.onQuit = null
         dialog?.dismiss()
         super.onDestroy()
     }

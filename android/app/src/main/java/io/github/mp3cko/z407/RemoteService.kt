@@ -22,8 +22,8 @@ import io.github.mp3cko.z407.core.Summary
  * foreground service, so Android lets it live; its notification says how
  * things stand, carries the keys used most, and opens the app when tapped.
  *
- * It runs from the first time the app is opened until the app is removed
- * from the list of recent apps.
+ * It runs from the first time the app is opened until the Quit key of the
+ * notification is pressed or the app is removed from the list of recent apps.
  */
 class RemoteService : Service() {
     companion object {
@@ -31,6 +31,7 @@ class RemoteService : Service() {
         private const val CHANNEL = "remote"
         private const val NOTIFICATION = 1
         private const val COMMAND = "io.github.mp3cko.z407.COMMAND."
+        private const val QUIT = "io.github.mp3cko.z407.QUIT"
         private const val REFRESH_MILLIS = 2_000L
 
         /** Call it while the app is on screen: only then may a foreground service start. */
@@ -69,6 +70,11 @@ class RemoteService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == QUIT) {
+            remote.quit() // closes the app's screen too, if it is open
+            stopSelf()
+            return START_NOT_STICKY
+        }
         val summary = remote.summary()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -127,16 +133,24 @@ class RemoteService : Service() {
             .addAction(key(R.drawable.ic_volume_down, R.string.key_volume_down, "vol_down"))
             .addAction(key(R.drawable.ic_play_pause, R.string.key_play_pause, "play_pause"))
             .addAction(key(R.drawable.ic_volume_up, R.string.key_volume_up, "vol_up"))
+            .addAction(action(R.drawable.ic_quit, R.string.key_quit, QUIT))
+            // Four keys are one more than a plain notification shows. This
+            // style shows them all when expanded, and the first three as
+            // icons when not.
+            .setStyle(Notification.MediaStyle().setShowActionsInCompactView(0, 1, 2))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE) // no ten-second wait
         }
         return builder.build()
     }
 
-    /** A key of the notification: it sends [command] to this service. */
-    private fun key(icon: Int, label: Int, command: String): Notification.Action {
+    /** A key of the notification that sends [command] ("vol_up") to the speakers. */
+    private fun key(icon: Int, label: Int, command: String) = action(icon, label, COMMAND + command)
+
+    /** A key of the notification: it sends [action] to this service. */
+    private fun action(icon: Int, label: Int, action: String): Notification.Action {
         val press = PendingIntent.getService(
-            this, 0, Intent(this, RemoteService::class.java).setAction(COMMAND + command), PendingIntent.FLAG_IMMUTABLE,
+            this, 0, Intent(this, RemoteService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Action.Builder(Icon.createWithResource(this, icon), getString(label), press).build()
     }

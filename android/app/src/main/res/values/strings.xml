@@ -13,4 +13,5 @@
     <string name="key_volume_down">Vol −</string>
     <string name="key_play_pause">Play / Pause</string>
     <string name="key_volume_up">Vol +</string>
+    <string name="key_quit">Quit</string>
 </resources>

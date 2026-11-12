@@ -97,6 +97,14 @@ class Remote private constructor(context: Context) {
         Thread({ api.handle("POST", "/api/$command", null) }, "z407-key").start()
     }
 
+    /** Closes the app's screen; set by the activity while there is one. */
+    @Volatile var onQuit: (() -> Unit)? = null
+
+    /** The Quit key of the notification: the screen goes too, the service stops the rest. */
+    fun quit() {
+        onQuit?.invoke()
+    }
+
     /**
      * The app came to the screen. If it is still looking for the speakers,
      * the other devices are asked for them once more.
