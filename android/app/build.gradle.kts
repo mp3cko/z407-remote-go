@@ -40,7 +40,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 drops what the app does not use (most of androidx) and
+            // shortens names. The app uses no reflection, so the rules
+            // that come with Android and the libraries are enough.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
