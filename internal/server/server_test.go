@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
@@ -20,10 +21,10 @@ type fakeSpeaker struct {
 	connected bool
 	volume    int
 	// Progress
-	connecting bool
-	problem    string
-	calls      []string
-	err        error
+	phase   string
+	problem string
+	calls   []string
+	err     error
 }
 
 func (f *fakeSpeaker) rec(n string) error {
@@ -38,8 +39,8 @@ func (f *fakeSpeaker) got() []string {
 	return append([]string(nil), f.calls...)
 }
 func (f *fakeSpeaker) Status() (bool, int) { return f.connected, f.volume }
-func (f *fakeSpeaker) Progress() (bool, string) {
-	return f.connecting, f.problem
+func (f *fakeSpeaker) Progress() (string, string) {
+	return f.phase, f.problem
 }
 func (f *fakeSpeaker) VolumeUp() error       { return f.rec("VolumeUp") }
 func (f *fakeSpeaker) VolumeDown() error     { return f.rec("VolumeDown") }
@@ -183,7 +184,7 @@ func TestStatus(t *testing.T) {
 	for _, sp := range []*fakeSpeaker{{connected: true, volume: 55}, {}} {
 		rec := do(New(sp, quiet), "GET", "/api/status")
 		m := decode(t, rec)
-		if rec.Code != 200 || len(m) != 4 || m["connecting"] != false || m["problem"] != "" || m["connected"] != sp.connected || m["volume"] != float64(sp.volume) {
+		if rec.Code != 200 || len(m) != 5 || m["phase"] == "" || m["note"] != "" || m["problem"] != "" || m["connected"] != sp.connected || m["volume"] != float64(sp.volume) {
 			t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 		}
 	}
@@ -249,9 +250,45 @@ func TestAddrs(t *testing.T) {
 }
 
 func TestStatusHidesStaleProgressOnceConnected(t *testing.T) {
-	sp := &fakeSpeaker{connected: true, volume: 50, connecting: true, problem: "Speakers not found"}
+	sp := &fakeSpeaker{connected: true, volume: 50, phase: "searching", problem: "Speakers not found"}
 	m := decode(t, do(New(sp, quiet), "GET", "/api/status"))
-	if m["connecting"] != false || m["problem"] != "" {
+	if m["phase"] != "connected" || m["problem"] != "" {
 		t.Fatalf("got %v", m)
+	}
+}
+
+func TestNotice(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	n := &Notice{now: func() time.Time { return now }}
+	if n.Get() != "" {
+		t.Fatal("a new notice is empty")
+	}
+	n.Set("one")
+	now = now.Add(NoticeTime - time.Millisecond)
+	if n.Get() != "one" {
+		t.Fatal("gone too early")
+	}
+	n.Set("two") // starts the time afresh
+	now = now.Add(NoticeTime - time.Millisecond)
+	if n.Get() != "two" {
+		t.Fatal("the second notice did not get its full time")
+	}
+	now = now.Add(time.Millisecond)
+	if n.Get() != "" {
+		t.Fatal("still there after its time")
+	}
+}
+
+func TestLogPollIsNotLogged(t *testing.T) {
+	var buf bytes.Buffer
+	h := New(&fakeSpeaker{}, WithLogger(logx.NewWriter(&buf, false)))
+	do(h, "GET", "/api/log")
+	do(h, "GET", "/api/status")
+	if buf.Len() != 0 {
+		t.Fatalf("logged: %s", buf.String())
+	}
+	do(h, "GET", "/api/peers")
+	if !strings.Contains(buf.String(), "/api/peers") {
+		t.Fatalf("not logged: %s", buf.String())
 	}
 }

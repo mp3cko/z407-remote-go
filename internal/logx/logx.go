@@ -72,7 +72,12 @@ func Red(s string) string    { return paint(stdoutColor, red, s) }
 type Logger struct {
 	l     *log.Logger
 	color bool
+	hist  *History
 }
+
+// Record makes the Logger remember its lines in h as well. Call it before
+// the Logger is shared between goroutines.
+func (lg *Logger) Record(h *History) { lg.hist = h }
 
 // New returns a Logger writing to f, with colors if f supports them.
 func New(f *os.File) *Logger {
@@ -86,7 +91,11 @@ func NewWriter(w io.Writer, color bool) *Logger {
 
 // Logf logs one line at the given level.
 func (lg *Logger) Logf(level Level, format string, args ...any) {
-	lg.l.Print(paint(lg.color, level.color(), fmt.Sprintf(format, args...)))
+	msg := fmt.Sprintf(format, args...)
+	if lg.hist != nil {
+		lg.hist.Add(level, msg)
+	}
+	lg.l.Print(paint(lg.color, level.color(), msg))
 }
 
 func (lg *Logger) Infof(format string, args ...any)    { lg.Logf(Info, format, args...) }

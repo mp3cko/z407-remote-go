@@ -138,6 +138,32 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
     0 -1px 0 rgba(0, 0, 0, .2);
   font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   display: grid; gap: 12px; align-content: center;
+  position: relative; transition: box-shadow .25s;
+}
+/* The whole display opens the log: an invisible key lies over it. */
+#logOpen {
+  position: absolute; inset: 0; min-height: 0; padding: 0; border-radius: inherit;
+  background: none; box-shadow: none; transform: none; filter: none;
+}
+#logOpen:focus-visible { outline-offset: 2px; }
+.display:has(#logOpen:hover), .display:has(#logOpen:focus-visible) {
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, .9),
+    inset 0 0 0 1px color-mix(in srgb, var(--lcd-ink) 35%, transparent),
+    inset 0 0 26px color-mix(in srgb, var(--lcd-ink) 10%, transparent),
+    0 1px 0 rgba(255, 255, 255, .7),
+    0 -1px 0 rgba(0, 0, 0, .2);
+}
+.display:has(#logOpen:active) { filter: brightness(1.25); }
+.barrow { display: flex; align-items: center; gap: 10px; }
+.tag {
+  flex: none; font-size: .58rem; font-weight: 700; letter-spacing: .16em; line-height: 1; text-transform: uppercase; padding: 4px 6px 4px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: 5px;
+  opacity: .7; transition: opacity .2s, text-shadow .2s, transform .2s;
+}
+.tag::after { content: " \203A"; }
+.display:has(#logOpen:hover) .tag, .display:has(#logOpen:focus-visible) .tag {
+  opacity: 1; text-shadow: 0 0 8px currentColor; transform: translateX(2px);
 }
 .readout { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .readout > :first-child { flex: none; }
@@ -155,10 +181,12 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
 }
 #msg.show { opacity: 1; }
 #msg.err { color: var(--red); }
+#msg, #connText { transition: opacity .2s, color .3s; }
 #connText { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; text-align: right; color: var(--red); text-shadow: 0 0 8px currentColor; }
 #conn.on #connText { color: var(--green); }
 #conn.busy #connText { color: var(--amber); }
-#volBar { display: flex; gap: 3px; height: 18px; }
+#volBar { flex: 1; display: flex; gap: 3px; height: 18px; }
+@media (max-width: 420px) { #msg { -webkit-line-clamp: 3; } }
 #volBar i { flex: 1; border-radius: 2px; background: var(--seg-off); transition: background .15s, box-shadow .15s; }
 #volBar i.lit { background: var(--c); box-shadow: 0 0 8px var(--c); }
 
@@ -268,15 +296,113 @@ details p { margin-top: 0; margin-bottom: 8px; }
 footer { text-align: center; font-size: .72rem; padding: 0 8px; }
 footer a { color: inherit; }
 
-dialog {
+#confirm {
   color: #33302b; border: 0; border-radius: 24px; padding: 22px;
   width: min(340px, calc(100% - 32px));
   background: linear-gradient(175deg, var(--shell-1), var(--shell-2));
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, .75), 0 5px 0 #8f8878, 0 30px 60px rgba(0, 0, 0, .5);
 }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
-dialog p { margin: 0 0 18px; font-weight: 600; }
-dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 4px; }
+#confirm p { margin: 0 0 18px; font-weight: 600; }
+#confirm form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 4px; }
+
+/* ---------- log viewer: the display, grown to a sheet ---------- */
+#log {
+  --ease: cubic-bezier(.2, .9, .25, 1);
+  border: 0; padding: 0; overflow: hidden;
+  width: min(780px, calc(100% - 32px)); max-width: none;
+  height: min(640px, 80vh); height: min(640px, 80dvh); max-height: none;
+  border-radius: 22px;
+  color: #d9d4c7; background: linear-gradient(180deg, #0c100c, #050705);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .07),
+    inset 0 1px 0 rgba(255, 255, 255, .1),
+    0 30px 80px rgba(0, 0, 0, .65);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  opacity: 0; transform: translateY(28px) scale(.97);
+  transition: opacity .22s ease, transform .32s var(--ease);
+}
+#log[open] { display: flex; flex-direction: column; }
+#log.in { opacity: 1; transform: none; }
+#log::backdrop {
+  background: rgba(0, 0, 0, 0); backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0);
+  transition: background .25s ease, backdrop-filter .25s ease, -webkit-backdrop-filter .25s ease;
+}
+#log.in::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#log header {
+  position: relative; flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0));
+}
+#log h2 {
+  margin: 0; font-size: .72rem; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--lcd-ink); text-shadow: 0 0 10px color-mix(in srgb, var(--lcd-ink) 60%, transparent);
+}
+#logState {
+  flex: 1; min-width: 0; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--red); transition: color .3s;
+}
+#log.on #logState { color: var(--green); }
+#log.busy #logState { color: var(--amber); }
+#log header button {
+  min-height: 34px; padding: 0 12px; border-radius: 10px; font-size: .66rem; letter-spacing: .12em;
+  color: inherit; background: rgba(255, 255, 255, .07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+  transition: background .15s, transform .06s;
+}
+#log header button:hover { background: rgba(255, 255, 255, .14); filter: none; }
+#log header button:active { transform: scale(.95); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+#logClose { width: 34px; padding: 0; }
+#logClose svg { width: 16px; height: 16px; }
+#logLines {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 0 14px;
+  font-size: .78rem; line-height: 1.5; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent;
+  -webkit-user-select: text; user-select: text;
+  /* lines fade out under the header and at the bottom edge */
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 12px, #000 calc(100% - 16px), transparent 100%);
+}
+#logLines:focus-visible { outline: none; }
+.ln {
+  display: grid; grid-template-columns: auto 1fr; gap: 12px; padding: 2px 18px 2px 15px;
+  border-left: 3px solid transparent; overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.ln time { color: #8d8676; font-variant-numeric: tabular-nums; }
+.ln.info span { color: #cfd8dd; }
+.ln.ok { border-left-color: var(--green); }
+.ln.ok span { color: var(--green); }
+.ln.error { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); }
+.ln.error span { color: #ff8a7d; }
+.ln.new { animation: line-in .35s var(--ease) both; }
+@keyframes line-in { from { opacity: 0; transform: translateY(8px); } }
+#logEmpty {
+  position: absolute; inset: 58px 0 0; margin: 0; padding: 24px; display: grid; place-items: center;
+  text-align: center; color: #8d8676; font-size: .8rem; pointer-events: none;
+}
+#logLines:not(:empty) + #logEmpty { display: none; }
+#logLatest {
+  position: absolute; left: 50%; bottom: 16px; min-height: 34px; padding: 0 16px; border-radius: 999px;
+  font-size: .66rem; letter-spacing: .12em; color: #17140f;
+  background: var(--lcd-ink); box-shadow: 0 8px 22px rgba(0, 0, 0, .5), 0 0 18px color-mix(in srgb, var(--lcd-ink) 45%, transparent);
+  opacity: 0; transform: translate(-50%, 14px); pointer-events: none;
+  transition: opacity .2s, transform .28s var(--ease);
+}
+#logLatest.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+#logLatest svg { width: 14px; height: 14px; }
+/* phones: a sheet rising from the bottom edge */
+@media (max-width: 600px) {
+  #log {
+    width: 100%; height: 86vh; height: 86dvh; margin: auto 0 0; border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(100%); transition: opacity .2s ease, transform .38s var(--ease);
+  }
+  #log header { padding-top: 18px; }
+  #log header::before {
+    content: ""; position: absolute; top: 7px; left: 50%; width: 38px; height: 4px; margin-left: -19px;
+    border-radius: 2px; background: rgba(255, 255, 255, .22);
+  }
+}
 
 /* ---------- wide screens: hi-fi faceplate ---------- */
 @media (min-width: 960px) {
@@ -317,7 +443,11 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
           <span class="lamp"><span id="connText">Starting…</span><span class="led"></span></span>
         </div>
       </div>
-      <div id="volBar" role="img" aria-label="Estimated volume"></div>
+      <div class="barrow">
+        <div id="volBar" role="img" aria-label="Estimated volume"></div>
+        <span class="tag" aria-hidden="true">Log</span>
+      </div>
+      <button id="logOpen" type="button" aria-haspopup="dialog" aria-label="Show the log"></button>
     </section>
 
     <section class="transport" aria-label="Playback">
@@ -402,12 +532,24 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
   </form>
 </dialog>
 
+<dialog id="log" aria-labelledby="logTitle">
+  <header>
+    <h2 id="logTitle">Log</h2>
+    <span id="logState"></span>
+    <button id="logCopy" type="button">Copy</button>
+    <button id="logClose" type="button" aria-label="Close the log"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </header>
+  <div id="logLines" role="log" aria-label="Log lines" tabindex="0"></div>
+  <p id="logEmpty">Nothing has been logged yet.</p>
+  <button id="logLatest" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Latest</button>
+</dialog>
+
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const conn = $('conn'), connText = $('connText');
   const volBar = $('volBar'), volText = $('volText'), ir = $('ir');
-  const msgEl = $('msg'), dlg = $('confirm');
+  const msgEl = $('msg'), dlg = $('confirm'), logDlg = $('log');
   const SEGMENTS = 24;
   let msgTimer, irTimer;
 
@@ -425,11 +567,13 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
   }
 
   // The message line of the display. say() shows a passing note; between
-  // notes the line shows what keeps the speakers from connecting, if anything.
-  let problem = '', saying = false;
+  // notes the line shows what the app is doing about the connection (asking
+  // another computer for the speakers, say) or what keeps it from connecting.
+  let standing = { text: '', isErr: false }, saying = false;
 
   function showMsg(text, isErr) {
     if (msgEl.textContent !== text) msgEl.textContent = text;
+    msgEl.title = text;
     msgEl.classList.toggle('err', !!isErr);
     msgEl.classList.toggle('show', !!text);
   }
@@ -438,20 +582,30 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     saying = true;
     showMsg(msg, isErr);
     clearTimeout(msgTimer);
-    msgTimer = setTimeout(() => { saying = false; showMsg(problem, true); }, 2200);
+    msgTimer = setTimeout(() => { saying = false; showMsg(standing.text, standing.isErr); }, 2200);
   }
 
-  function setProblem(text) {
-    problem = text;
-    if (!saying) showMsg(problem, true);
+  function setStanding(text, isErr) {
+    standing = { text, isErr };
+    if (!saying) showMsg(text, isErr);
   }
 
-  // The connection line: 'on' (connected), 'busy' (connecting) or neither.
+  // The connection line, here and in the log viewer: 'on' (connected),
+  // 'busy' (searching or connecting) or neither.
   function showConn(state, text) {
-    conn.classList.toggle('on', state === 'on');
-    conn.classList.toggle('busy', state === 'busy');
+    for (const el of [conn, logDlg]) {
+      el.classList.toggle('on', state === 'on');
+      el.classList.toggle('busy', state === 'busy');
+    }
     connText.textContent = text;
+    $('logState').textContent = text;
   }
+
+  const PHASES = {
+    connected: ['on', 'Connected'],
+    searching: ['busy', 'Searching…'],
+    connecting: ['busy', 'Connecting…'],
+  };
 
   // Signal lamp: green while the app answers, red once it stops.
   function api(up) {
@@ -489,22 +643,21 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     try {
       const data = await (await fetch('/api/status')).json();
       api(true);
-      if (data.connected) showConn('on', 'Connected');
-      else if (data.connecting) showConn('busy', 'Connecting…');
-      else showConn('', 'Not connected');
-      setProblem(data.connected ? '' : data.problem || '');
+      showConn(...(PHASES[data.phase] || ['', 'Not connected']));
+      if (data.note) setStanding(data.note, false);
+      else setStanding(data.connected ? '' : data.problem || '', true);
       if (typeof data.volume === 'number') showVolume(data.volume);
     } catch {
       api(false);
       showConn('', 'App unreachable');
-      setProblem('');
+      setStanding('', false);
     }
   }
 
   // Poll faster while not connected, so the display follows the attempts.
   async function poll() {
     await refresh();
-    setTimeout(poll, conn.classList.contains('on') ? 5000 : 1500);
+    setTimeout(poll, conn.classList.contains('on') ? 5000 : 1000);
   }
 
   document.addEventListener('click', (e) => {
@@ -518,6 +671,88 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
     } else {
       send(btn);
     }
+  });
+
+  // Log viewer: opened by pressing the display. While it is open it asks
+  // for the lines it has not seen yet once a second.
+  const logLines = $('logLines'), logLatest = $('logLatest');
+  const MAX_LINES = 500, still = matchMedia('(prefers-reduced-motion: reduce)');
+  let logNext = 0, logTimer = 0, logBusy = false;
+
+  const atBottom = () => logLines.scrollHeight - logLines.scrollTop - logLines.clientHeight < 28;
+
+  function toBottom(smooth) {
+    logLines.scrollTo({ top: logLines.scrollHeight, behavior: smooth && !still.matches ? 'smooth' : 'auto' });
+    logLatest.classList.remove('show');
+  }
+
+  function addLines(lines, fresh) {
+    const follow = atBottom();
+    for (const l of lines) {
+      const row = document.createElement('div'), time = document.createElement('time'), text = document.createElement('span');
+      row.className = 'ln ' + (['ok', 'error'].includes(l.level) ? l.level : 'info') + (fresh ? ' new' : '');
+      time.textContent = l.time;
+      text.textContent = l.text;
+      row.append(time, text);
+      logLines.append(row);
+    }
+    while (logLines.childElementCount > MAX_LINES) logLines.firstElementChild.remove();
+    if (!lines.length) return;
+    if (follow || !fresh) toBottom(fresh);
+    else logLatest.classList.add('show');
+  }
+
+  async function loadLog() {
+    if (logBusy) return;
+    logBusy = true;
+    try {
+      const res = await fetch('/api/log?after=' + logNext);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.next < logNext) { // the app was restarted: start over
+        logLines.replaceChildren();
+        logNext = 0;
+        return;
+      }
+      const first = logNext === 0 && !logLines.childElementCount;
+      logNext = data.next;
+      addLines(data.lines || [], !first);
+    } catch { /* the display already says that the app cannot be reached */
+    } finally {
+      logBusy = false;
+    }
+  }
+
+  function openLog() {
+    if (logDlg.open) return;
+    logDlg.showModal();
+    logLines.focus({ preventScroll: true }); // arrow keys and Page Up/Down scroll the lines
+    toBottom(false);
+    requestAnimationFrame(() => logDlg.classList.add('in'));
+    loadLog();
+    logTimer = setInterval(loadLog, 1000);
+  }
+
+  function closeLog() {
+    if (!logDlg.open || !logDlg.classList.contains('in')) return;
+    clearInterval(logTimer);
+    logDlg.classList.remove('in');
+    setTimeout(() => logDlg.close(), still.matches ? 0 : 260); // after the way out has played
+  }
+
+  $('logOpen').addEventListener('click', openLog);
+  $('logClose').addEventListener('click', closeLog);
+  logDlg.addEventListener('cancel', (e) => { e.preventDefault(); closeLog(); }); // Esc
+  logDlg.addEventListener('click', (e) => { if (e.target === logDlg) closeLog(); }); // the backdrop
+  logLines.addEventListener('scroll', () => { if (atBottom()) logLatest.classList.remove('show'); }, { passive: true });
+  logLatest.addEventListener('click', () => toBottom(true));
+  $('logCopy').addEventListener('click', (e) => {
+    const text = [...logLines.children].map((row) => row.firstChild.textContent + '  ' + row.lastChild.textContent).join('\n');
+    const btn = e.currentTarget;
+    copy(text).then(() => 'Copied', () => 'Failed').then((label) => {
+      btn.textContent = label;
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
   });
 
   // "Other computers" editor. The list is sent in the query string, not in
@@ -564,7 +799,8 @@ dialog form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.cssText = 'position:fixed;opacity:0';
-      document.body.appendChild(ta);
+      // Inside an open dialog the rest of the page cannot take the focus.
+      (document.querySelector('dialog[open]') || document.body).appendChild(ta);
       ta.select();
       const ok = document.execCommand('copy');
       ta.remove();

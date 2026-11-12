@@ -95,7 +95,7 @@ class MainActivity : Activity() {
         if (url.host != HOST) return null
         val path = url.path ?: "/"
         if (path.startsWith("/api/")) {
-            val r = remote.api.handle(request.method, path, url.getQueryParameter("list"))
+            val r = remote.api.handle(request.method, path, url.getQueryParameter("list"), url.getQueryParameter("after"))
             return WebResourceResponse(
                 r.contentType.substringBefore(';'), "utf-8", r.status, r.reason,
                 mapOf("Cache-Control" to "no-store"), ByteArrayInputStream(r.body.toByteArray()),

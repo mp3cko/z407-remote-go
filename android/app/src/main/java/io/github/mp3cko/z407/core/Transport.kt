@@ -4,6 +4,8 @@ import java.io.IOException
 
 /** Events a [Link] reports. They may arrive on any thread. */
 interface LinkEvents {
+    /** Called during the dial, once the speakers have been seen and the connection to them begins. */
+    fun onFound() {}
     fun onNotify(data: ByteArray)
     fun onDisconnect()
 }

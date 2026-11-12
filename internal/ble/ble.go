@@ -90,6 +90,9 @@ func (d *Dialer) Dial(ctx context.Context, h speaker.Handler) (speaker.Link, err
 	if err != nil {
 		return nil, err
 	}
+	if h.OnFound != nil {
+		h.OnFound()
+	}
 
 	l := &link{stop: make(chan struct{})}
 	var once sync.Once

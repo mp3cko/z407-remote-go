@@ -35,7 +35,9 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, and can also close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
+While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and close the app (`POST /api/shutdown`, see [Several computers](#several-computers)).
+
+The display of the remote tells what the app is doing: "Searching…", "Connecting…", "Connected", and above that what is in the way ("Speakers not found", "Bluetooth is off or missing") or what is being done about it ("Asking living-room-pc:5000 to release the speakers"). Press the display to open the log: the last 500 lines, updated as they come. No terminal is needed for that, on any platform.
 
 ### The window
 
@@ -60,7 +62,7 @@ The speakers accept one Bluetooth LE controller at a time, so a second copy of t
 - On the remote's page, open "Other computers" below the remote, enter the other machines as `host` or `host:port` separated by commas (for example `living-room-pc, 192.168.1.20:5001`; the port defaults to 5000) and press Save. The list is stored in `z407/config.json` in your configuration directory (`%AppData%` on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS) and takes effect at once.
 - Or start the app with `--peers living-room-pc,192.168.1.20:5001`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the page during that run.
 
-When a copy has searched for the speakers for 10 seconds without connecting, it sends `POST /api/shutdown` to every computer on its list. A copy that receives this closes itself (window included) and releases the speakers. Only the app stops: the computer itself is not shut down, and nothing else on it is touched. The searching copy then connects on one of its next attempts. Each computer is asked at most once per run and a copy never asks itself, so two copies that list each other cannot keep shutting each other down. Computers that are off or not running the app are skipped.
+When a copy has looked for the speakers for 3 seconds without seeing them (free speakers show up within a second or two), it sends `POST /api/shutdown` to every computer on its list. A copy that receives this closes itself (window included) and releases the speakers. Only the app stops: the computer itself is not shut down, and nothing else on it is touched. The searching copy then connects, usually within a few seconds. If the speakers were seen but the connection does not come about, the same happens after 10 seconds. Each computer is asked at most once per run and a copy never asks itself, so two copies that list each other cannot keep shutting each other down. Computers that are off or not running the app are skipped.
 
 Like the rest of the API, `/api/shutdown` is not authenticated: anyone on your network can close the app with it. They cannot do more than that.
 
@@ -103,7 +105,7 @@ Good to know:
 
 - On first start the app asks for the "Nearby devices" permission (Android 12 and newer) or the Location permission (Android 8 to 11, where Bluetooth scans require it and Location must be switched on). The app does not use your position.
 - The app holds the speakers only while it is on screen. When you leave it, it disconnects, so that other controllers can connect.
-- If a computer running the desktop app holds the speakers, the phone cannot connect. Open "Other computers" in the app and enter that computer's address: after 10 seconds of searching, the app asks it to close its copy (see [Several computers](#several-computers)) and then connects. Each computer is asked once each time the app comes to the screen. The phone and the computer must be on the same network for this. Nothing can close the phone app remotely.
+- If a computer running the desktop app holds the speakers, the phone cannot connect. Open "Other computers" in the app and enter that computer's address: after 3 seconds of searching, the app asks it to close its copy (see [Several computers](#several-computers)) and then connects. Each computer is asked once each time the app comes to the screen. The phone and the computer must be on the same network for this. Nothing can close the phone app remotely.
 
 ### Building it
 
@@ -134,9 +136,10 @@ The Bluetooth side cannot be tested automatically. With a phone and the speakers
 8. Switch the speakers off: the display shows "Not connected". Switch them on: the app reconnects by itself.
 9. Press Home, then check that another controller (for example the desktop app) can now connect. Return to the app after closing the other controller: it reconnects.
 10. Rotate the phone and switch the system between light and dark: the remote follows, and the connection survives the rotation.
-11. Takeover: run the desktop app on a computer so that it is connected. On the phone enter the computer's address under "Other computers" and save; an invalid entry such as `http://x` is refused with a message. About 10 seconds after the app started searching (at once, if it has searched longer already) the desktop app closes, and shortly after the phone shows "Connected".
+11. Takeover: run the desktop app on a computer so that it is connected. On the phone enter the computer's address under "Other computers" and save; an invalid entry such as `http://x` is refused with a message. About 3 seconds after the app started searching (at once, if it has searched longer already) the display shows "Asking ... to release the speakers", the desktop app closes, and shortly after the phone shows "Connected".
 12. Start the desktop app again, wait until it is connected, then bring the phone app back to the screen: it takes the speakers over again.
 13. Close the phone app completely and reopen it: the saved list is still there.
+14. Press the display: the log opens and shows what happened so far (searching, connecting, the takeover); new lines appear by themselves. Close it with the cross or a tap outside.
 
 ## Troubleshooting
 

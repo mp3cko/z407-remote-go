@@ -59,6 +59,7 @@ class BleDialer(context: Context) : Dialer {
         if (!adapter.isEnabled) throw IOException("Bluetooth is switched off")
         try {
             val device = find(adapter)
+            events.onFound()
             val link = GattLink(events)
             link.connect(device)
             return link

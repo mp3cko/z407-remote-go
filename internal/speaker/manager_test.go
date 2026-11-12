@@ -436,19 +436,27 @@ func TestRepeatedFailureLoggedOnce(t *testing.T) {
 }
 
 func TestProgress(t *testing.T) {
-	if c, p := NewManager(&fakeDialer{}).Progress(); c || p != "" {
-		t.Fatalf("before Run: connecting=%v problem=%q", c, p)
+	if ph, p := NewManager(&fakeDialer{}).Progress(); ph != "" || p != "" {
+		t.Fatalf("before Run: phase=%q problem=%q", ph, p)
 	}
 
-	// A dial that hangs: the attempt is under way.
-	release := make(chan struct{})
-	d := &fakeDialer{prepare: func(*fakeLink, Handler) { <-release }}
+	// A dial that hangs: first searching, then, once found, connecting.
+	found, release := make(chan struct{}), make(chan struct{})
+	d := &fakeDialer{prepare: func(_ *fakeLink, h Handler) { <-found; h.OnFound(); <-release }}
 	m, _, _ := start(t, d)
-	eventually(t, "connecting", func() bool { c, _ := m.Progress(); return c })
+	eventually(t, "searching", func() bool { ph, _ := m.Progress(); return ph == PhaseSearching })
+	if m.Found() {
+		t.Fatal("found before the dialer said so")
+	}
+	close(found)
+	eventually(t, "connecting", func() bool { ph, _ := m.Progress(); return ph == PhaseConnecting })
+	if !m.Found() {
+		t.Fatal("not found while connecting")
+	}
 	close(release)
 	waitConnected(t, m)
-	if c, p := m.Progress(); c || p != "" {
-		t.Fatalf("connected: connecting=%v problem=%q", c, p)
+	if ph, p := m.Progress(); ph != "" || p != "" {
+		t.Fatalf("connected: phase=%q problem=%q", ph, p)
 	}
 }
 

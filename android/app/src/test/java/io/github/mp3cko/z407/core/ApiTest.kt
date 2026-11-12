@@ -36,10 +36,58 @@ class ApiTest {
 
     @Test
     fun status() {
-        check(disconnectedApi().handle("GET", "/api/status", null), 200, "{\"connected\":false,\"connecting\":false,\"problem\":\"\",\"volume\":50}\n")
+        check(disconnectedApi().handle("GET", "/api/status", null), 200, "{\"connected\":false,\"note\":\"\",\"phase\":\"waiting\",\"problem\":\"\",\"volume\":50}\n")
         val api = connectedApi()
         api.handle("POST", "/api/vol_up", null)
-        check(api.handle("GET", "/api/status", null), 200, "{\"connected\":true,\"connecting\":false,\"problem\":\"\",\"volume\":55}\n")
+        check(api.handle("GET", "/api/status", null), 200, "{\"connected\":true,\"note\":\"\",\"phase\":\"connected\",\"problem\":\"\",\"volume\":55}\n")
+        check(api.handle("GET", "/api/log", null), 200, "{\"lines\":[],\"next\":0}\n")
+        assertEquals(405, api.handle("POST", "/api/log", null).status)
+    }
+
+    @Test
+    fun logViewerAndNotice() {
+        @Suppress("DEPRECATION")
+        val history = LogHistory(now = { java.util.Date(126, 0, 2, 21, 4, 5) })
+        history.add(LogHistory.INFO, "Searching")
+        history.add(LogHistory.ERROR, "Dial failed: \"x\" <y>")
+        history.add(LogHistory.OK, "Connected to Z407")
+        val notice = Notice()
+        notice.set("Asking desk:5000 to release the speakers")
+        val api = Api(SpeakerManager(FakeDialer()), store, notice::get, history)
+
+        val one = "{\"level\":\"info\",\"n\":1,\"text\":\"Searching\",\"time\":\"21:04:05\"}"
+        val two = "{\"level\":\"error\",\"n\":2,\"text\":\"Dial failed: \\\"x\\\" \\u003cy\\u003e\",\"time\":\"21:04:05\"}"
+        val three = "{\"level\":\"ok\",\"n\":3,\"text\":\"Connected to Z407\",\"time\":\"21:04:05\"}"
+        val all = "{\"lines\":[$one,$two,$three],\"next\":3}\n"
+        check(api.handle("GET", "/api/log", null), 200, all)
+        check(api.handle("GET", "/api/log", null, "2"), 200, "{\"lines\":[$three],\"next\":3}\n")
+        check(api.handle("GET", "/api/log", null, "3"), 200, "{\"lines\":[],\"next\":3}\n")
+        check(api.handle("GET", "/api/log", null, "junk"), 200, all)
+        check(
+            api.handle("GET", "/api/status", null), 200,
+            "{\"connected\":false,\"note\":\"Asking desk:5000 to release the speakers\",\"phase\":\"waiting\",\"problem\":\"\",\"volume\":50}\n",
+        )
+    }
+
+    @Test
+    fun logHistoryDropsTheOldestLines() {
+        val history = LogHistory(max = 2)
+        for (i in 1..3) history.add(LogHistory.INFO, "line $i")
+        val (lines, last) = history.since(0)
+        assertEquals(listOf(2, 3), lines.map { it.n })
+        assertEquals(3, last)
+    }
+
+    @Test
+    fun noticeGoesAwayByItself() {
+        var now = 0L
+        val notice = Notice { now }
+        assertEquals("", notice.get())
+        notice.set("one")
+        now = Notice.TIME_MILLIS - 1
+        assertEquals("one", notice.get())
+        now = Notice.TIME_MILLIS
+        assertEquals("", notice.get())
     }
 
     @Test

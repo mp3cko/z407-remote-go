@@ -4,6 +4,9 @@ import (
 	"errors"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/mp3cko/z407-remote-go/internal/logx"
 )
 
 // The Android app shows this same page and answers its requests natively
@@ -26,11 +29,14 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		body   string
 	}{
 		{"status", func() *fakeSpeaker { return &fakeSpeaker{volume: 50} }, "GET", "/api/status", 200,
-			`{"connected":false,"connecting":false,"problem":"","volume":50}`},
-		{"status connecting", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, connecting: true, problem: "Speakers not found"} },
-			"GET", "/api/status", 200, `{"connected":false,"connecting":true,"problem":"Speakers not found","volume":50}`},
+			`{"connected":false,"note":"","phase":"waiting","problem":"","volume":50}`},
+		{"status searching", func() *fakeSpeaker {
+			return &fakeSpeaker{volume: 50, phase: "searching", problem: "Speakers not found"}
+		},
+			"GET", "/api/status", 200, `{"connected":false,"note":"","phase":"searching","problem":"Speakers not found","volume":50}`},
 		{"status connected", connected, "GET", "/api/status", 200,
-			`{"connected":true,"connecting":false,"problem":"","volume":55}`},
+			`{"connected":true,"note":"","phase":"connected","problem":"","volume":55}`},
+		{"no log", connected, "GET", "/api/log", 200, `{"lines":[],"next":0}`},
 		{"command", connected, "POST", "/api/vol_up", 200, `{"success":true}`},
 		{"not connected", func() *fakeSpeaker { return &fakeSpeaker{} }, "POST", "/api/vol_up", 404,
 			`{"error":"Speakers not connected. Waiting for background connection...","success":false}`},
@@ -54,6 +60,31 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 			t.Errorf("%s: %d %s", c.name, rec.Code, rec.Body)
 		}
 	}
+	// The log viewer: every line, then only the ones after a given number.
+	history := logx.NewHistory(10)
+	history.SetClock(func() time.Time { return time.Date(2026, 1, 2, 21, 4, 5, 0, time.Local) })
+	history.Add(logx.Info, "Searching")
+	history.Add(logx.Error, `Dial failed: "x" <y>`)
+	history.Add(logx.Success, "Connected to Z407")
+	notice := &Notice{}
+	notice.Set("Asking desk:5000 to release the speakers")
+	withLog := New(&fakeSpeaker{volume: 50}, quiet, WithHistory(history), WithNotice(notice))
+	for path, want := range map[string]string{
+		"/api/log": `{"lines":[{"level":"info","n":1,"text":"Searching","time":"21:04:05"},` +
+			`{"level":"error","n":2,"text":"Dial failed: \"x\" \u003cy\u003e","time":"21:04:05"},` +
+			`{"level":"ok","n":3,"text":"Connected to Z407","time":"21:04:05"}],"next":3}`,
+		"/api/log?after=2": `{"lines":[{"level":"ok","n":3,"text":"Connected to Z407","time":"21:04:05"}],"next":3}`,
+		"/api/log?after=3": `{"lines":[],"next":3}`,
+		"/api/log?after=junk": `{"lines":[{"level":"info","n":1,"text":"Searching","time":"21:04:05"},` +
+			`{"level":"error","n":2,"text":"Dial failed: \"x\" \u003cy\u003e","time":"21:04:05"},` +
+			`{"level":"ok","n":3,"text":"Connected to Z407","time":"21:04:05"}],"next":3}`,
+		"/api/status": `{"connected":false,"note":"Asking desk:5000 to release the speakers","phase":"waiting","problem":"","volume":50}`,
+	} {
+		if rec := do(withLog, "GET", path); rec.Code != 200 || rec.Body.String() != want+"\n" {
+			t.Errorf("%s: %d %s", path, rec.Code, rec.Body)
+		}
+	}
+
 	if rec := do(withPeers, "GET", "/api/peers"); rec.Body.String() != `{"fixed":false,"peers":["desk:5000","192.168.1.20:5001"]}`+"\n" {
 		t.Errorf("saved peers: %s", rec.Body)
 	}

@@ -132,10 +132,15 @@ class SpeakerManagerTest {
         eventually("problem") { failing.manager.status().problem == "Not found" }
         assertFalse(failing.manager.status().connected)
 
-        // A dial that hangs: the attempt is under way.
+        // A dial that hangs: first searching, then, once found, connecting.
+        val found = java.util.concurrent.CountDownLatch(1)
         val release = java.util.concurrent.CountDownLatch(1)
-        val r = start(FakeDialer(prepare = { _, _ -> release.await() }))
-        eventually("connecting") { r.manager.status().connecting }
+        val r = start(FakeDialer(prepare = { _, events -> found.await(); events.onFound(); release.await() }))
+        eventually("searching") { r.manager.status().phase == SpeakerManager.PHASE_SEARCHING }
+        assertFalse(r.manager.found())
+        found.countDown()
+        eventually("connecting") { r.manager.status().phase == SpeakerManager.PHASE_CONNECTING }
+        assertTrue(r.manager.found())
         release.countDown()
         r.waitConnected()
         assertEquals(Status(true, 50), r.manager.status())

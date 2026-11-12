@@ -7,13 +7,14 @@ class NotConnectedException : IOException("speakers not connected")
 
 /**
  * Connection state and estimated volume (0-100). While not connected,
- * [connecting] tells whether an attempt is under way and [problem] what went
- * wrong with the last one ("" when nothing did).
+ * [phase] is the phase of the attempt under way ([SpeakerManager.PHASE_SEARCHING],
+ * [SpeakerManager.PHASE_CONNECTING], or "" between attempts) and [problem]
+ * what went wrong with the last one ("" when nothing did).
  */
 data class Status(
     val connected: Boolean,
     val volume: Int,
-    val connecting: Boolean = false,
+    val phase: String = "",
     val problem: String = "",
 )
 
@@ -32,6 +33,8 @@ class SpeakerManager(
         const val DEFAULT_RETRY_MILLIS = 5000L
         const val DEFAULT_HEARTBEAT_MILLIS = 5000L
         const val VOLUME_STEP = 5
+        const val PHASE_SEARCHING = "searching" // looking for the speakers
+        const val PHASE_CONNECTING = "connecting" // found them, setting up the connection
         const val PROBLEM_CONNECT = "Could not connect"
         const val PROBLEM_NO_ANSWER = "Speakers did not answer"
         const val PROBLEM_LOST = "Connection lost"
@@ -40,7 +43,8 @@ class SpeakerManager(
     private val lock = Object()
     private var link: Link? = null
     private var connected = false
-    private var connecting = false // a connection attempt is under way
+    private var phase = "" // of the attempt under way; "" = none is
+    private var found = false // the latest attempt has seen the speakers
     private var problem = "" // what went wrong with the last attempt
     private var dropped = false // current attempt lost its connection
     private var pendingKeepAlive = false // keep-alive received before dial returned
@@ -110,7 +114,7 @@ class SpeakerManager(
             old = link
             link = null
             connected = false
-            connecting = false
+            phase = ""
             attempt++
             runner = null
         }
@@ -134,7 +138,8 @@ class SpeakerManager(
             connected = false
             dropped = false
             pendingKeepAlive = false
-            connecting = true
+            phase = PHASE_SEARCHING
+            found = false
             wake = false // discard wake-ups belonging to the previous connection
             id = ++attempt
         }
@@ -143,12 +148,13 @@ class SpeakerManager(
         val l: Link
         try {
             l = dialer.dial(object : LinkEvents {
+                override fun onFound() = this@SpeakerManager.onFound(id)
                 override fun onNotify(data: ByteArray) = this@SpeakerManager.onNotify(id, data)
                 override fun onDisconnect() = this@SpeakerManager.onDisconnect(id)
             })
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
-            synchronized(lock) { connecting = false }
+            synchronized(lock) { phase = "" }
             return false
         } catch (e: IOException) {
             logFail("Dial failed: ${e.message}")
@@ -178,7 +184,7 @@ class SpeakerManager(
             } else {
                 problem = PROBLEM_LOST
             }
-            connecting = false
+            phase = ""
         }
         if (!accepted) {
             l.close()
@@ -194,10 +200,22 @@ class SpeakerManager(
     /** Ends a connection attempt that did not work out. */
     private fun failed(why: String) {
         synchronized(lock) {
-            connecting = false
+            phase = ""
             problem = why
         }
     }
+
+    private fun onFound(id: Int) {
+        synchronized(lock) {
+            if (id == attempt && phase == PHASE_SEARCHING) {
+                phase = PHASE_CONNECTING
+                found = true
+            }
+        }
+    }
+
+    /** Whether the latest connection attempt has seen the speakers. */
+    fun found(): Boolean = synchronized(lock) { found }
 
     private fun reply(l: Link) {
         try {
@@ -252,7 +270,7 @@ class SpeakerManager(
     }
 
     fun status(): Status = synchronized(lock) {
-        if (connected) Status(true, volume) else Status(false, volume, connecting, problem)
+        if (connected) Status(true, volume) else Status(false, volume, phase, problem)
     }
 
     @Throws(IOException::class)

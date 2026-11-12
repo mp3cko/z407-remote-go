@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import io.github.mp3cko.z407.core.Api
+import io.github.mp3cko.z407.core.LogHistory
+import io.github.mp3cko.z407.core.Notice
 import io.github.mp3cko.z407.core.PeerStore
 import io.github.mp3cko.z407.core.SpeakerManager
 import io.github.mp3cko.z407.core.Takeover
@@ -29,14 +31,29 @@ class Remote private constructor(context: Context) {
     }
 
     private val store = PrefsPeerStore(context)
-    private val manager = SpeakerManager(BleDialer(context), log = { Log.i(TAG, it) })
+    private val history = LogHistory()
+    private val notice = Notice()
+    private val manager = SpeakerManager(BleDialer(context), log = ::log)
     private val takeover = Takeover(
         peers = store::load,
         connected = { manager.status().connected },
         post = ::postShutdown,
-        log = { Log.i(TAG, it) },
+        log = ::log,
+        found = manager::found,
+        note = notice::set,
     )
-    val api = Api(manager, store)
+    val api = Api(manager, store, notice::get, history)
+
+    /** Logs to logcat and to the log viewer of the remote. */
+    private fun log(line: String) {
+        Log.i(TAG, line)
+        val level = when {
+            line.startsWith("Connected") -> LogHistory.OK
+            line.contains("failed") -> LogHistory.ERROR
+            else -> LogHistory.INFO
+        }
+        history.add(level, line)
+    }
 
     private var threads: List<Thread> = emptyList()
 

@@ -13,6 +13,8 @@ class TakeoverTest {
     private val unreachable = HashSet<String>()
     private val calls = ArrayList<String>()
     private val log = ArrayList<String>()
+    private var found = false
+    private val notes = ArrayList<String>()
     private val timeout = Takeover.SEARCH_TIMEOUT_MILLIS
 
     private val takeover = Takeover(
@@ -24,6 +26,8 @@ class TakeoverTest {
             "200 {\"success\":true}"
         },
         log = { log.add(it) },
+        found = { found },
+        note = { notes.add(it) },
     )
 
     private fun advance(millis: Long) {
@@ -38,6 +42,31 @@ class TakeoverTest {
         assertEquals(emptyList<String>(), calls)
         advance(1)
         assertEquals(listOf("desk:5000"), calls)
+    }
+
+    @Test
+    fun seenSpeakersGetMoreTime() {
+        found = true
+        advance(0)
+        advance(Takeover.CONNECT_TIMEOUT_MILLIS - 1)
+        assertEquals(emptyList<String>(), calls)
+        advance(1) // seen, but the connection never came
+        assertEquals(listOf("desk:5000"), calls)
+    }
+
+    @Test
+    fun notesTellWhatIsGoingOn() {
+        peers = listOf("desk:5000", "attic:5000")
+        unreachable.add("attic:5000")
+        advance(0)
+        advance(timeout)
+        assertEquals(
+            listOf(
+                "Asking desk:5000 to release the speakers", "desk:5000 released the speakers",
+                "Asking attic:5000 to release the speakers", "attic:5000 did not answer",
+            ),
+            notes,
+        )
     }
 
     @Test

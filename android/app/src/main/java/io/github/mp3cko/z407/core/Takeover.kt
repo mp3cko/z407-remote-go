@@ -23,10 +23,24 @@ class Takeover(
     private val post: (peer: String) -> String,
     private val log: (String) -> Unit = {},
     private val timeoutMillis: Long = SEARCH_TIMEOUT_MILLIS,
+    /** Whether the connection attempt under way has seen the speakers. */
+    private val found: () -> Boolean = { false },
+    /** Tells the user, in a few words, what is being done. */
+    private val note: (String) -> Unit = {},
+    private val foundTimeoutMillis: Long = CONNECT_TIMEOUT_MILLIS,
 ) {
     companion object {
-        /** How long the app searches on its own before asking the peers. */
-        const val SEARCH_TIMEOUT_MILLIS = 10_000L
+        /**
+         * How long the app searches on its own before asking the peers.
+         * Speakers that are free show up within a second or two.
+         */
+        const val SEARCH_TIMEOUT_MILLIS = 3_000L
+        /**
+         * Replaces the search timeout once the speakers have been seen:
+         * setting up the connection takes a moment longer, and a peer must
+         * not be closed for that.
+         */
+        const val CONNECT_TIMEOUT_MILLIS = 10_000L
         /** Bounds the request to one peer; a computer that is off must not hold up the others. */
         const val PEER_TIMEOUT_MILLIS = 2_000
         const val CHECK_INTERVAL_MILLIS = 1_000L
@@ -52,14 +66,18 @@ class Takeover(
             searching = true
             since = nowMillis
         }
-        if (nowMillis - since < timeoutMillis) return
+        if (nowMillis - since < (if (found()) foundTimeoutMillis else timeoutMillis)) return
         for (peer in peers()) {
             if (!asked.add(peer)) continue
+            note("Asking $peer to release the speakers")
             try {
-                log("Speakers not found; asked $peer to release them: ${post(peer)}")
+                val answer = post(peer)
+                note(if (answer.startsWith("200")) "$peer released the speakers" else "$peer did not release the speakers")
+                log("Speakers not found; asked $peer to release them: $answer")
             } catch (e: IOException) {
                 // Normal: that computer is off, or the app is not running there.
                 log("Other computers: $peer did not answer (${e.message})")
+                note("$peer did not answer")
             }
         }
     }

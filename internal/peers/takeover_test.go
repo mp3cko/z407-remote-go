@@ -335,3 +335,54 @@ func TestPostShutdownAnswer(t *testing.T) {
 		t.Error("expected an error for an invalid address")
 	}
 }
+
+// Speakers that were seen get more time: the connection is being set up,
+// and no peer must be closed for that.
+func TestSeenSpeakersGetMoreTime(t *testing.T) {
+	p := newPeer(t)
+	r := newRig(p.addr())
+	found := true
+	r.Found = func() bool { return found }
+	r.advance(0)
+	r.advance(SearchTimeout)
+	r.advance(ConnectTimeout - SearchTimeout - time.Millisecond)
+	if len(p.got()) != 0 {
+		t.Fatalf("peer asked while connecting: %v", p.got())
+	}
+	r.advance(time.Millisecond) // seen, but the connection never came
+	if !reflect.DeepEqual(p.got(), shutdown) {
+		t.Fatalf("peer got %v", p.got())
+	}
+
+	// Not seen in the next attempt: the short limit applies again.
+	q := newPeer(t)
+	r2 := newRig(q.addr())
+	r2.Found = func() bool { return false }
+	r2.advance(0)
+	r2.advance(SearchTimeout)
+	if !reflect.DeepEqual(q.got(), shutdown) {
+		t.Fatalf("peer got %v", q.got())
+	}
+}
+
+func TestNotesTellWhatIsGoingOn(t *testing.T) {
+	for _, c := range []struct {
+		answer string
+		err    error
+		want   string
+	}{
+		{`200 {"success":true}`, nil, "desk:5000 released the speakers"},
+		{`501 {"success":false}`, nil, "desk:5000 did not release the speakers"},
+		{"", errors.New("connection refused"), "desk:5000 did not answer"},
+	} {
+		r := newRig("desk:5000")
+		var notes []string
+		r.Note = func(s string) { notes = append(notes, s) }
+		r.Post = func(context.Context, string) (string, error) { return c.answer, c.err }
+		r.advance(0)
+		r.advance(SearchTimeout)
+		if want := []string{"Asking desk:5000 to release the speakers", c.want}; !reflect.DeepEqual(notes, want) {
+			t.Errorf("got %q, want %q", notes, want)
+		}
+	}
+}

@@ -51,11 +51,20 @@ const (
 	volumeStep       = 5
 )
 
-// Handler receives events from a Link.
+// Handler receives events from a Dialer and its Link.
 type Handler struct {
+	// OnFound is called during Dial, once the speakers have been seen and
+	// the connection to them begins.
+	OnFound      func()
 	OnNotify     func(data []byte)
 	OnDisconnect func()
 }
+
+// Phases of a connection attempt, as reported by Progress.
+const (
+	PhaseSearching  = "searching"  // looking for the speakers
+	PhaseConnecting = "connecting" // found them, setting up the connection
+)
 
 // Link is an established connection to the speaker.
 type Link interface {
@@ -106,15 +115,16 @@ type Manager struct {
 
 	wake chan struct{} // signalled when the current connection is lost
 
-	mu         sync.Mutex
-	link       Link
-	connected  bool
-	connecting bool   // a connection attempt is under way
-	problem    string // what went wrong with the last attempt; "" = nothing
-	dropped    bool   // current attempt lost its connection
-	pendingKA  bool   // keep-alive received before Dial returned
-	attempt    int    // generation of the current attempt; stale callbacks are ignored
-	volume     int
+	mu        sync.Mutex
+	link      Link
+	connected bool
+	phase     string // of the attempt under way; "" = none is
+	found     bool   // the latest attempt has seen the speakers
+	problem   string // what went wrong with the last attempt; "" = nothing
+	dropped   bool   // current attempt lost its connection
+	pendingKA bool   // keep-alive received before Dial returned
+	attempt   int    // generation of the current attempt; stale callbacks are ignored
+	volume    int
 }
 
 // NewManager returns a Manager that connects through d once Run is called.
@@ -181,7 +191,7 @@ func (m *Manager) wait(ctx context.Context, d time.Duration, wakeable bool) {
 func (m *Manager) shutdown() {
 	m.mu.Lock()
 	l := m.link
-	m.link, m.connected, m.connecting = nil, false, false
+	m.link, m.connected, m.phase = nil, false, ""
 	m.attempt++
 	m.mu.Unlock()
 	if l != nil {
@@ -201,7 +211,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	m.mu.Lock()
 	old := m.link
 	m.link, m.connected, m.dropped, m.pendingKA = nil, false, false, false
-	m.connecting = true
+	m.phase, m.found = PhaseSearching, false
 	m.attempt++
 	id := m.attempt
 	m.mu.Unlock()
@@ -214,6 +224,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	}
 
 	l, err := m.dialer.Dial(ctx, Handler{
+		OnFound:      func() { m.onFound(id) },
 		OnNotify:     func(data []byte) { m.onNotify(id, data) },
 		OnDisconnect: func() { m.onDisconnect(id) },
 	})
@@ -231,13 +242,13 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 
 	m.mu.Lock()
 	if m.attempt != id || m.dropped {
-		m.connecting, m.problem = false, problemLost
+		m.phase, m.problem = "", problemLost
 		m.mu.Unlock()
 		_ = l.Close()
 		return false
 	}
 	m.link, m.connected = l, true
-	m.connecting, m.problem = false, ""
+	m.phase, m.problem = "", ""
 	pending := m.pendingKA
 	m.pendingKA = false
 	m.mu.Unlock()
@@ -253,8 +264,24 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 // failed ends a connection attempt that did not work out.
 func (m *Manager) failed(problem string) {
 	m.mu.Lock()
-	m.connecting, m.problem = false, problem
+	m.phase, m.problem = "", problem
 	m.mu.Unlock()
+}
+
+func (m *Manager) onFound(id int) {
+	m.mu.Lock()
+	if id == m.attempt && m.phase == PhaseSearching {
+		m.phase, m.found = PhaseConnecting, true
+	}
+	m.mu.Unlock()
+}
+
+// Found reports whether the latest connection attempt has seen the
+// speakers. They can be seen and still refuse the connection.
+func (m *Manager) Found() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.found
 }
 
 func (m *Manager) reply(l Link) {
@@ -319,13 +346,14 @@ func (m *Manager) Status() (connected bool, volume int) {
 	return m.connected, m.volume
 }
 
-// Progress tells more about a missing connection: whether an attempt to
-// connect is under way, and what went wrong with the last one ("" when
-// nothing did). The problem stays until a connection succeeds.
-func (m *Manager) Progress() (connecting bool, problem string) {
+// Progress tells more about a missing connection: the phase of the attempt
+// under way (PhaseSearching, PhaseConnecting, or "" between attempts), and
+// what went wrong with the last one ("" when nothing did). The problem stays
+// until a connection succeeds.
+func (m *Manager) Progress() (phase, problem string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.connecting, m.problem
+	return m.phase, m.problem
 }
 
 func (m *Manager) send(cmd protocol.Command) error {

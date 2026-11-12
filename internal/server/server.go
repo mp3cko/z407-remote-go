@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/mp3cko/z407-remote-go/internal/logx"
@@ -37,9 +38,10 @@ const notConnectedMsg = "Speakers not connected. Waiting for background connecti
 // Speaker is the subset of speaker.Manager used by the HTTP handlers.
 type Speaker interface {
 	Status() (connected bool, volume int)
-	// Progress tells more while not connected: whether an attempt to
-	// connect is under way, and what went wrong with the last one.
-	Progress() (connecting bool, problem string)
+	// Progress tells more while not connected: the phase of the attempt
+	// under way ("searching", "connecting", or "" between attempts), and
+	// what went wrong with the last one.
+	Progress() (phase, problem string)
 	VolumeUp() error
 	VolumeDown() error
 	PlayPause() error
@@ -75,6 +77,12 @@ func WithShutdown(fn func()) Option { return func(s *srv) { s.shutdown = fn } }
 // first. The page shows them (default: none).
 func WithAddrs(fn func() []string) Option { return func(s *srv) { s.addrs = fn } }
 
+// WithNotice sets the passing message the display shows (default: none).
+func WithNotice(n *Notice) Option { return func(s *srv) { s.notice = n } }
+
+// WithHistory enables the log viewer: GET /api/log serves the lines in h.
+func WithHistory(h *logx.History) Option { return func(s *srv) { s.history = h } }
+
 type srv struct {
 	sp       Speaker
 	log      *logx.Logger
@@ -83,6 +91,8 @@ type srv struct {
 	peers    *peers.Store
 	shutdown func()
 	addrs    func() []string
+	notice   *Notice
+	history  *logx.History
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
@@ -115,6 +125,7 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/status", s.status)
 	mux.HandleFunc("GET /api/addrs", s.listAddrs)
+	mux.HandleFunc("GET /api/log", s.logLines)
 	mux.HandleFunc("GET /api/peers", s.listPeers)
 	mux.HandleFunc("POST /api/peers", s.savePeers)
 	mux.HandleFunc("POST /api/shutdown", s.shutdownApp)
@@ -155,12 +166,19 @@ func (s *srv) staticFile(w http.ResponseWriter, r *http.Request) {
 
 func (s *srv) status(w http.ResponseWriter, _ *http.Request) {
 	connected, vol := s.sp.Status()
-	connecting, problem := s.sp.Progress()
-	if connected {
-		connecting, problem = false, ""
+	phase, problem := s.sp.Progress()
+	switch {
+	case connected:
+		phase, problem = "connected", ""
+	case phase == "":
+		phase = "waiting" // for the next attempt
+	}
+	note := ""
+	if s.notice != nil {
+		note = s.notice.Get()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"connected": connected, "connecting": connecting, "problem": problem, "volume": vol,
+		"connected": connected, "note": note, "phase": phase, "problem": problem, "volume": vol,
 	})
 }
 
@@ -180,6 +198,24 @@ func (s *srv) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// logLines serves the log viewer: the remembered lines after line number
+// ?after= (all of them without it), and the number to ask with next time.
+func (s *srv) logLines(w http.ResponseWriter, r *http.Request) {
+	lines := []map[string]any{}
+	last := 0
+	if s.history != nil {
+		after, _ := strconv.Atoi(r.URL.Query().Get("after"))
+		var entries []logx.Entry
+		entries, last = s.history.Since(after)
+		for _, e := range entries {
+			lines = append(lines, map[string]any{
+				"level": e.Level.String(), "n": e.N, "text": e.Text, "time": e.Time.Format("15:04:05"),
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"lines": lines, "next": last})
 }
 
 func (s *srv) listAddrs(w http.ResponseWriter, _ *http.Request) {
@@ -249,14 +285,14 @@ func (w *statusWriter) WriteHeader(c int) {
 // Unwrap lets http.ResponseController reach the real writer (for Flush).
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-// accessLog logs every request except the UI's 5s GET /api/status poll and
-// its event stream, e.g. "POST /api/vol_up -> 200 (2ms) from 192.168.1.50".
+// accessLog logs every request except the UI's polls (GET /api/status and,
+// while the log viewer is open, GET /api/log) and its event stream, e.g. "POST /api/vol_up -> 200 (2ms) from 192.168.1.50".
 func (s *srv) accessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := &statusWriter{ResponseWriter: w, code: http.StatusOK}
 		start := time.Now()
 		next.ServeHTTP(sw, r)
-		if r.Method == http.MethodGet && (r.URL.Path == "/api/status" || r.URL.Path == "/api/events") {
+		if r.Method == http.MethodGet && (r.URL.Path == "/api/status" || r.URL.Path == "/api/log" || r.URL.Path == "/api/events") {
 			return
 		}
 		host, _, err := net.SplitHostPort(r.RemoteAddr)

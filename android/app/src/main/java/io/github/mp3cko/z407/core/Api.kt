@@ -12,7 +12,14 @@ data class ApiResponse(val status: Int, val reason: String, val body: String) {
  * so the page needs no Android-specific code. Only method, path and query
  * string are used: a WebView cannot read the body of a request it intercepts.
  */
-class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
+class Api(
+    private val speaker: SpeakerManager,
+    private val store: PeerStore,
+    /** The passing message the display shows. */
+    private val notice: () -> String = { "" },
+    /** What the log viewer shows; null = nothing. */
+    private val history: LogHistory? = null,
+) {
     companion object {
         const val NOT_CONNECTED = "Speakers not connected. Waiting for background connection..."
     }
@@ -32,8 +39,11 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
         "prev_speaker" to speaker::prevTrack,
     )
 
-    /** [path] is the URL path ("/api/vol_up"); [list] the decoded ?list= parameter, if any. */
-    fun handle(method: String, path: String, list: String?): ApiResponse {
+    /**
+     * [path] is the URL path ("/api/vol_up"); [list] and [after] are the
+     * decoded ?list= and ?after= parameters, if any.
+     */
+    fun handle(method: String, path: String, list: String?, after: String? = null): ApiResponse {
         val name = path.removePrefix("/api/")
         if (!path.startsWith("/api/") || name.isEmpty() || name.contains('/')) return notFound()
         return when (name) {
@@ -43,6 +53,7 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
                 "POST" -> savePeers(list ?: "")
                 else -> methodNotAllowed()
             }
+            "log" -> if (method == "GET") logLines(after) else methodNotAllowed()
             // The phone runs no server: there is no address to open the remote at...
             "addrs" -> if (method == "GET") json(200, "urls" to emptyList<String>()) else methodNotAllowed()
             // ...the page's event stream has no meaning here...
@@ -57,9 +68,22 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
 
     private fun status(): ApiResponse {
         val s = speaker.status()
+        val phase = when {
+            s.connected -> "connected"
+            s.phase.isEmpty() -> "waiting" // for the next attempt
+            else -> s.phase
+        }
         return json(
-            200, "connected" to s.connected, "connecting" to s.connecting, "problem" to s.problem, "volume" to s.volume,
+            200, "connected" to s.connected, "note" to notice(), "phase" to phase, "problem" to s.problem,
+            "volume" to s.volume,
         )
+    }
+
+    /** The remembered log lines after line number [after] (all of them without it). */
+    private fun logLines(after: String?): ApiResponse {
+        val (entries, last) = history?.since(after?.toIntOrNull() ?: 0) ?: (emptyList<LogEntry>() to 0)
+        val lines = entries.map { mapOf("level" to it.level, "n" to it.n, "text" to it.text, "time" to it.time) }
+        return json(200, "lines" to lines, "next" to last)
     }
 
     private fun command(name: String): ApiResponse {
@@ -96,7 +120,9 @@ class Api(private val speaker: SpeakerManager, private val store: PeerStore) {
 
     private fun encode(v: Any): String = when (v) {
         is Boolean, is Int -> v.toString()
-        is List<*> -> v.joinToString(",", "[", "]") { quote(it as String) }
+        is List<*> -> v.joinToString(",", "[", "]") { encode(it!!) }
+        is Map<*, *> -> v.entries.sortedBy { it.key as String }
+            .joinToString(",", "{", "}") { quote(it.key as String) + ":" + encode(it.value!!) }
         else -> quote(v.toString())
     }
 

@@ -43,7 +43,12 @@ const (
 type backend interface {
 	server.Speaker
 	Run(ctx context.Context)
+	// Found reports whether the connection attempt under way has seen the speakers.
+	Found() bool
 }
+
+// logLines is how many log lines the log viewer of the remote can show.
+const logLines = 500
 
 // deps are the replaceable collaborators of runWith.
 type deps struct {
@@ -149,6 +154,10 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		lg = logx.New(os.Stderr)
 	}
 
+	history := logx.NewHistory(logLines)
+	lg.Record(history)
+	notice := &server.Notice{}
+
 	store := d.openPeers(lg)
 	peersGiven := false
 	fs.Visit(func(f *flag.Flag) { peersGiven = peersGiven || f.Name == "peers" })
@@ -174,6 +183,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	})
 	handler := server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence), server.WithPeers(store),
 		server.WithAddrs(func() []string { return webURLs(d.addrs(), actualPort, *ip) }),
+		server.WithNotice(notice), server.WithHistory(history),
 		server.WithShutdown(func() {
 			lg.Infof("Shutdown requested over the network (another computer takes over the speakers), stopping")
 			cancelBg()
@@ -192,6 +202,8 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	tk := d.takeover
 	tk.Peers = func() []string { list, _ := store.List(); return list }
 	tk.Connected = func() bool { connected, _ := d.sp.Status(); return connected }
+	tk.Found = d.sp.Found
+	tk.Note = notice.Set
 	if tk.IsSelf == nil {
 		tk.IsSelf = peers.SelfCheck(actualPort, d.ips, d.resolve)
 	}

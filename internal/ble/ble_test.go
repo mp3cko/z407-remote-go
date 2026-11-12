@@ -133,13 +133,17 @@ func TestDialSuccess(t *testing.T) {
 	r.blockScan = true
 
 	var notified []byte
-	disc := 0
+	disc, found := 0, 0
 	l, err := dialer(r).Dial(context.Background(), speaker.Handler{
+		OnFound:      func() { found++ },
 		OnNotify:     func(b []byte) { notified = b },
 		OnDisconnect: func() { disc++ },
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if found != 1 {
+		t.Errorf("OnFound called %d times", found)
 	}
 	if r.gotAddr != "z407" {
 		t.Errorf("addr %v", r.gotAddr)
@@ -192,7 +196,8 @@ func TestNilHandlers(t *testing.T) {
 func TestEnableError(t *testing.T) {
 	r := newRadio()
 	r.enableErr = errors.New("no adapter")
-	if _, err := dialer(r).Dial(context.Background(), speaker.Handler{}); err == nil || !strings.Contains(err.Error(), "no adapter") {
+	_, err := dialer(r).Dial(context.Background(), speaker.Handler{})
+	if err == nil || !strings.Contains(err.Error(), "no adapter") || !errors.Is(err, speaker.ErrNoBluetooth) {
 		t.Fatal(err)
 	}
 }
@@ -201,9 +206,13 @@ func TestNotFoundTimeout(t *testing.T) {
 	r := newRadio()
 	r.blockScan = true
 	r.results = []scanResult{{addr: "x"}}
-	_, err := dialer(r).Dial(context.Background(), speaker.Handler{})
-	if !errors.Is(err, ErrNotFound) {
+	found := false
+	_, err := dialer(r).Dial(context.Background(), speaker.Handler{OnFound: func() { found = true }})
+	if !errors.Is(err, ErrNotFound) || !errors.Is(err, speaker.ErrNotFound) {
 		t.Fatal(err)
+	}
+	if found {
+		t.Error("OnFound called for speakers that were not found")
 	}
 	if r.stopped == 0 {
 		t.Error("scan not stopped")

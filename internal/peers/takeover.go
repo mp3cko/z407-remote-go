@@ -14,8 +14,13 @@ import (
 
 const (
 	// SearchTimeout is how long this instance looks for the speakers on its
-	// own before it asks its peers to release them.
-	SearchTimeout = 10 * time.Second
+	// own before it asks its peers to release them. Speakers that are free
+	// show up within a second or two.
+	SearchTimeout = 3 * time.Second
+	// ConnectTimeout replaces SearchTimeout once the speakers have been
+	// seen: setting up the connection takes a moment longer, and a peer must
+	// not be closed for that.
+	ConnectTimeout = 10 * time.Second
 	// PeerTimeout bounds the request to one peer; a computer that is switched
 	// off must not hold up the others.
 	PeerTimeout = 2 * time.Second
@@ -29,15 +34,22 @@ const (
 type Takeover struct {
 	Peers     func() []string // current list, "host:port"
 	Connected func() bool     // are the speakers connected?
+	// Found reports whether the connection attempt under way has seen the
+	// speakers. nil = it never has.
+	Found func() bool
+	// Note tells the user, in a few words, what is being done. nil = nobody.
+	Note func(text string)
 	// IsSelf reports whether peer is this very instance, which must never be
 	// asked. nil = nothing is.
 	IsSelf func(peer string) bool
 	// Post sends the shutdown request and describes the answer. nil = HTTP.
 	Post func(ctx context.Context, peer string) (answer string, err error)
 	Log  func(level logx.Level, format string, args ...any)
-	// Timeout and PeerTimeout default to SearchTimeout and PeerTimeout.
-	Timeout     time.Duration
-	PeerTimeout time.Duration
+	// Timeout, FoundTimeout and PeerTimeout default to SearchTimeout,
+	// ConnectTimeout and PeerTimeout.
+	Timeout      time.Duration
+	FoundTimeout time.Duration
+	PeerTimeout  time.Duration
 
 	searching bool
 	since     time.Time       // start of the current search
@@ -64,6 +76,11 @@ func (t *Takeover) Check(ctx context.Context, now time.Time) {
 	timeout := t.Timeout
 	if timeout <= 0 {
 		timeout = SearchTimeout
+	}
+	if t.Found != nil && t.Found() {
+		if timeout = t.FoundTimeout; timeout <= 0 {
+			timeout = ConnectTimeout
+		}
 	}
 	if now.Sub(t.since) < timeout {
 		return
@@ -98,13 +115,26 @@ func (t *Takeover) ask(ctx context.Context, peer string) {
 	if post == nil {
 		post = PostShutdown
 	}
+	t.note("Asking %s to release the speakers", peer)
 	answer, err := post(ctx, peer)
-	if err != nil {
+	switch {
+	case err != nil:
 		// Normal: that computer is off, or the app is not running there.
 		t.logf(logx.Info, "Other computers: %s did not answer (%v)", peer, err)
+		t.note("%s did not answer", peer)
 		return
+	case strings.HasPrefix(answer, "200"):
+		t.note("%s released the speakers", peer)
+	default:
+		t.note("%s did not release the speakers", peer)
 	}
 	t.logf(logx.Info, "Speakers not found; asked %s to release them: %s", peer, answer)
+}
+
+func (t *Takeover) note(format string, args ...any) {
+	if t.Note != nil {
+		t.Note(fmt.Sprintf(format, args...))
+	}
 }
 
 // Run calls Check every interval (CheckInterval if 0) until ctx is cancelled.
