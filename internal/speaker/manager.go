@@ -46,7 +46,12 @@ func dialProblem(err error) string {
 }
 
 const (
-	defaultRetry     = 5 * time.Second
+	defaultRetry = 5 * time.Second
+	// softFails is how many failed attempts in a row pass as a hiccup: a
+	// warning in the log and "searching" on the display. A copy started
+	// right after another one closed, or one taking the speakers over,
+	// often fails once or twice while the speakers let go of the other.
+	softFails        = 2
 	defaultHeartbeat = 5 * time.Second
 	volumeStep       = 5
 )
@@ -114,6 +119,7 @@ type Manager struct {
 	heartbeat time.Duration
 	log       func(level logx.Level, format string, args ...any)
 	lastFail  string
+	fails     int // failed attempts since the last connection
 
 	wake chan struct{} // signalled when the current connection is lost
 	turn chan struct{} // signalled by Release and Reconnect
@@ -148,16 +154,31 @@ func NewManager(d Dialer, opts ...Option) *Manager {
 	return m
 }
 
-// logFail logs a connection failure unless it repeats the previous one, so a
-// permanently missing adapter or absent speakers do not flood the console.
-// connectOnce runs on a single goroutine, so lastFail needs no lock.
-func (m *Manager) logFail(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	if msg == m.lastFail {
-		return
+// attemptFailed ends a connection attempt that did not work out, and logs why
+// unless it repeats the previous failure, so a permanently missing adapter
+// or absent speakers do not flood the console. The first few failures in a
+// row are a warning and leave the display searching; later ones, and a
+// missing Bluetooth adapter, are an error shown as problem.
+// connectOnce runs on a single goroutine, so lastFail and fails need no lock.
+func (m *Manager) attemptFailed(problem, format string, args ...any) {
+	m.fails++
+	hard := m.fails > softFails || problem == problemNoBluetooth
+	m.mu.Lock()
+	if hard {
+		m.phase, m.problem = "", problem
+	} else {
+		m.phase, m.problem = PhaseSearching, ""
 	}
-	m.lastFail = msg
-	m.logf(logx.Error, "%s (retrying every %s, repeats hidden)", msg, m.retry)
+	m.mu.Unlock()
+	msg := fmt.Sprintf(format, args...)
+	if key := fmt.Sprint(hard, msg); key != m.lastFail {
+		m.lastFail = key
+		if hard {
+			m.logf(logx.Error, "%s (retrying every %s, repeats hidden)", msg, m.retry)
+		} else {
+			m.logf(logx.Warning, "%s (retrying in %s)", msg, m.retry)
+		}
+	}
 }
 
 func (m *Manager) logf(level logx.Level, format string, args ...any) {
@@ -302,14 +323,12 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 		if m.isReleased() {
 			return false // abandoned, not failed
 		}
-		m.logFail("Dial failed: %v", err)
-		m.failed(dialProblem(err))
+		m.attemptFailed(dialProblem(err), "Dial failed: %v", err)
 		return false
 	}
 	if err := l.Write(protocol.Handshake); err != nil {
-		m.logFail("Handshake failed: %v", err)
 		_ = l.Close()
-		m.failed(problemNoAnswer)
+		m.attemptFailed(problemNoAnswer, "Handshake failed: %v", err)
 		return false
 	}
 
@@ -331,16 +350,9 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	if pending {
 		m.reply(l)
 	}
-	m.lastFail = ""
+	m.lastFail, m.fails = "", 0
 	m.logf(logx.Success, "Connected to Z407")
 	return true
-}
-
-// failed ends a connection attempt that did not work out.
-func (m *Manager) failed(problem string) {
-	m.mu.Lock()
-	m.phase, m.problem = "", problem
-	m.mu.Unlock()
 }
 
 func (m *Manager) onFound(id int) {

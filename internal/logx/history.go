@@ -12,6 +12,8 @@ func (l Level) String() string {
 		return "ok"
 	case Error:
 		return "error"
+	case Warning:
+		return "warn"
 	default:
 		return "info"
 	}

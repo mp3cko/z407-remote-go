@@ -16,6 +16,7 @@ const (
 	Info    Level = iota // blue
 	Success              // green
 	Error                // red
+	Warning              // yellow: something failed that will likely sort itself out
 )
 
 const (
@@ -32,6 +33,8 @@ func (l Level) color() string {
 		return green
 	case Error:
 		return red
+	case Warning:
+		return yellow
 	default:
 		return blue
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -410,11 +411,13 @@ func TestConcurrentUse(t *testing.T) {
 func TestRepeatedFailureLoggedOnce(t *testing.T) {
 	var mu sync.Mutex
 	var lines []string
+	var levels []logx.Level
 	d := &fakeDialer{failN: 5}
 	m := NewManager(d, WithRetryInterval(time.Millisecond), WithHeartbeat(5*time.Millisecond),
-		WithLogger(func(_ logx.Level, f string, a ...any) {
+		WithLogger(func(level logx.Level, f string, a ...any) {
 			mu.Lock()
 			lines = append(lines, fmt.Sprintf(f, a...))
+			levels = append(levels, level)
 			mu.Unlock()
 		}))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -425,14 +428,31 @@ func TestRepeatedFailureLoggedOnce(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	fails := 0
-	for _, l := range lines {
+	// Once as a warning while it may be a hiccup, once more as an error
+	// when it goes on.
+	var got []logx.Level
+	for i, l := range lines {
 		if strings.Contains(l, "Dial failed") {
-			fails++
+			got = append(got, levels[i])
 		}
 	}
-	if fails != 1 {
-		t.Errorf("identical failure logged %d times, want 1: %q", fails, lines)
+	if !slices.Equal(got, []logx.Level{logx.Warning, logx.Error}) {
+		t.Errorf("failure logged with levels %v, want [warning error]: %q", got, lines)
+	}
+}
+
+func TestFirstFailureKeepsSearching(t *testing.T) {
+	var logged atomic.Int32
+	// The retry is far off: the state the first failure left stays put.
+	m := NewManager(&fakeDialer{failN: 100}, WithRetryInterval(time.Hour),
+		WithLogger(func(logx.Level, string, ...any) { logged.Add(1) }))
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { m.Run(ctx); close(done) }()
+	t.Cleanup(func() { cancel(); <-done })
+	eventually(t, "the failure logged", func() bool { return logged.Load() > 0 })
+	if phase, problem := m.Progress(); phase != PhaseSearching || problem != "" {
+		t.Errorf("after one failure: phase=%q problem=%q, want searching and no problem", phase, problem)
 	}
 }
 

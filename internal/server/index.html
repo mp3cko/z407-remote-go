@@ -445,6 +445,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .ln.ok span { color: var(--green); }
 .ln.error { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 9%, transparent); }
 .ln.error span { color: #ff8a7d; }
+.ln.warn { border-left-color: var(--amber); }
+.ln.warn span { color: var(--amber); }
 .ln.new { animation: line-in .35s var(--ease) both; }
 @keyframes line-in { from { opacity: 0; transform: translateY(8px); } }
 #logEmpty {
@@ -782,7 +784,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     const follow = atBottom();
     for (const l of lines) {
       const row = document.createElement('div'), time = document.createElement('time'), text = document.createElement('span');
-      row.className = 'ln ' + (['ok', 'error'].includes(l.level) ? l.level : 'info') + (fresh ? ' new' : '');
+      row.className = 'ln ' + (['ok', 'warn', 'error'].includes(l.level) ? l.level : 'info') + (fresh ? ' new' : '');
       time.textContent = l.time;
       text.textContent = l.text;
       row.append(time, text);
