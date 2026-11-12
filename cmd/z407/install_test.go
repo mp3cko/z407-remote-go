@@ -9,7 +9,7 @@ import (
 
 func TestInstallAndUninstallLauncher(t *testing.T) {
 	dataHome := filepath.Join(t.TempDir(), "share")
-	exe := filepath.Join("/opt", "my apps", "z407")
+	exe := "/opt/my apps/z407" // a launcher is for Linux, whatever runs the test
 	entry, err := installLauncher(dataHome, exe, []byte("png"))
 	if err != nil {
 		t.Fatal(err)
