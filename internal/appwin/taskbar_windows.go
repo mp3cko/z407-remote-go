@@ -3,8 +3,12 @@
 package appwin
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 	"unsafe"
@@ -12,8 +16,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// AppID is the identity of the app window on the Windows taskbar.
-const AppID = "io.github.mp3cko.z407"
+// appID is the identity on the Windows taskbar of the app window shown by
+// the program at exe. It includes the program's path: the taskbar remembers
+// a pinned window's relaunch command per id and never updates it, so with
+// one id for all, a pin made from one copy of z407.exe would go on starting
+// that copy, even after another one was pinned in its place.
+func appID(exe string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(filepath.Clean(exe))))
+	return "io.github.mp3cko.z407." + hex.EncodeToString(sum[:6])
+}
 
 var (
 	shell32                         = windows.NewLazySystemDLL("shell32.dll")
@@ -94,7 +105,7 @@ func brandWindows(exe string) int {
 			pidRelaunchCommand:             `"` + exe + `"`,
 			pidRelaunchIconResource:        exe + ",0",
 			pidRelaunchDisplayNameResource: WindowTitle,
-			pidID:                          AppID,
+			pidID:                          appID(exe),
 		})
 	}
 	return len(found)
