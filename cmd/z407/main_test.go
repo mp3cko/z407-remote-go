@@ -247,6 +247,14 @@ func TestIsTerminal(t *testing.T) {
 	if isTerminal(f) {
 		t.Error("closed file is not a terminal")
 	}
+	null, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer null.Close()
+	if isTerminal(null) {
+		t.Error(os.DevNull + " is not a terminal")
+	}
 }
 
 func TestPickAddrs(t *testing.T) {
@@ -284,10 +292,10 @@ func TestBannerMultipleAddrs(t *testing.T) {
 
 func TestPortHint(t *testing.T) {
 	e := errorBanner(errors.New("listen tcp 0.0.0.0:5000: bind: address already in use"))
-	if !strings.Contains(e, "--port 5001") {
+	if !strings.Contains(e, "--port 2408") {
 		t.Errorf("no hint: %s", e)
 	}
-	if strings.Contains(errorBanner(errors.New("other")), "--port 5001") {
+	if strings.Contains(errorBanner(errors.New("other")), "--port 2408") {
 		t.Error("hint shown for unrelated error")
 	}
 }
@@ -317,7 +325,7 @@ func TestLogMode(t *testing.T) {
 		want string
 	}{
 		{"", ""},
-		{"--port 5001", ""},
+		{"--port 2408", ""},
 		{"--log file", "file"},
 		{"-log=terminal", "terminal"},
 		{"--port 5001 --log=file --no-window", "file"},

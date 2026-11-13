@@ -38,7 +38,7 @@ func TestNormalize(t *testing.T) {
 	for _, in := range bad {
 		if got, err := Normalize(in, 5000); err == nil {
 			t.Errorf("%q: accepted as %q", in, got)
-		} else if !strings.Contains(err.Error(), "not a valid address") || !strings.Contains(err.Error(), "192.168.1.20:5000") {
+		} else if !strings.Contains(err.Error(), "not a valid address") || !strings.Contains(err.Error(), "192.168.1.20:2408") {
 			t.Errorf("%q: unhelpful message: %v", in, err)
 		}
 	}

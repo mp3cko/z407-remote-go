@@ -9,7 +9,7 @@ import (
 const NoticeTime = 8 * time.Second
 
 // Notice is a short message for the remote's display, such as "Asking
-// living-room-pc:5000 to release the speakers". It goes away by itself.
+// living-room-pc:2407 to release the speakers". It goes away by itself.
 // The zero value is ready to use.
 type Notice struct {
 	mu    sync.Mutex

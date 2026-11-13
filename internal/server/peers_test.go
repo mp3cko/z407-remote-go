@@ -103,7 +103,7 @@ func TestPeersFixedByFlag(t *testing.T) {
 func TestPeersDefaultStore(t *testing.T) {
 	h := New(&fakeSpeaker{}, quiet)
 	rec := do(h, "POST", "/api/peers?list=pc")
-	if m := decode(t, rec); rec.Code != 200 || !reflect.DeepEqual(peerList(t, m), []string{"pc:5000"}) {
+	if m := decode(t, rec); rec.Code != 200 || !reflect.DeepEqual(peerList(t, m), []string{"pc:2407"}) {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 	}
 }

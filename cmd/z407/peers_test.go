@@ -138,7 +138,7 @@ func TestPeersSavedAcrossRestart(t *testing.T) {
 		t.Fatalf("config file: %v", err)
 	}
 	b := startApp(t, deps{configDir: configIn(dir)})
-	if list, _ := b.peers(); !reflect.DeepEqual(list, []string{"desk:5000", "192.168.1.20:5001"}) {
+	if list, _ := b.peers(); !reflect.DeepEqual(list, []string{"desk:2407", "192.168.1.20:5001"}) {
 		t.Fatalf("after restart: %v", list)
 	}
 }
@@ -156,7 +156,7 @@ func TestPeersFlagOverridesWithoutOverwriting(t *testing.T) {
 	}
 
 	b := startApp(t, deps{configDir: configIn(dir)}, "--peers", "flag-pc:6000,other")
-	if list, fixed := b.peers(); !reflect.DeepEqual(list, []string{"flag-pc:6000", "other:5000"}) || !fixed {
+	if list, fixed := b.peers(); !reflect.DeepEqual(list, []string{"flag-pc:6000", "other:2407"}) || !fixed {
 		t.Fatalf("with flag: %v fixed=%v", list, fixed)
 	}
 	if code, _ := b.request("POST", "/api/peers?list=from-ui"); code != 409 {
@@ -169,7 +169,7 @@ func TestPeersFlagOverridesWithoutOverwriting(t *testing.T) {
 	}
 
 	c := startApp(t, deps{configDir: configIn(dir)})
-	if list, fixed := c.peers(); !reflect.DeepEqual(list, []string{"saved-pc:5000"}) || fixed {
+	if list, fixed := c.peers(); !reflect.DeepEqual(list, []string{"saved-pc:2407"}) || fixed {
 		t.Fatalf("next run without the flag: %v fixed=%v", list, fixed)
 	}
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/mp3cko/z407-remote-go/internal/peers"
 	"github.com/mp3cko/z407-remote-go/internal/server"
 	"github.com/mp3cko/z407-remote-go/internal/speaker"
+	"golang.org/x/term"
 )
 
 const (
@@ -109,9 +110,10 @@ func failExit(err error, out io.Writer, in io.Reader, goos string, tty bool) {
 	}
 }
 
+// isTerminal reports whether f is a terminal. A character device is not
+// enough: the macOS app started from Finder has /dev/null as its output.
 func isTerminal(f *os.File) bool {
-	fi, err := f.Stat()
-	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
 
 // run parses args and serves until ctx is cancelled or the window showing
@@ -423,5 +425,5 @@ func portHint(err error) string {
 	return "\nThe port is still in use after waiting " + portWait.String() + ". Most likely another copy of\n" +
 		"Z407 Remote is running on it: one started with --no-window, one whose\n" +
 		"remote is open in a browser tab, or (on WSL) the Windows build.\n" +
-		"Stop that copy, or start this one on another port, e.g.:  z407 --port 5001\n"
+		"Stop that copy, or start this one on another port, e.g.:  z407 --port 2408\n"
 }

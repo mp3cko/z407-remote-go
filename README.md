@@ -40,9 +40,9 @@ make test
 
 Run `z407` (double-click it, or start it from a terminal). The remote opens in its own window. Closing the window stops the app.
 
-While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:5000`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and make the app let go of the speakers (`POST /api/disconnect`, see [Several computers](#several-devices)). The whole HTTP API is described in [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.1), for scripts and home automation.
+While the window is open, other devices on the same network can use the remote too: open the address shown below the remote under "Web address" (for example `http://192.168.1.50:2407`; the app also prints it) on your phone. The API has no authentication, so anyone on your network who knows the address can control the speakers, read the app's log, and make the app let go of the speakers (`POST /api/disconnect`, see [Several computers](#several-devices)). The whole HTTP API is described in [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.1), for scripts and home automation.
 
-The display of the remote tells what the app is doing: "Searching…", "Connecting…", "Connected", and above that what is in the way ("Speakers not found", "Bluetooth is off or missing") or what is being done about it ("Asking living-room-pc:5000 to release the speakers"). Press the display to open the log: the last 500 lines, updated as they come. No terminal is needed for that, on any platform.
+The display of the remote tells what the app is doing: "Searching…", "Connecting…", "Connected", and above that what is in the way ("Speakers not found", "Bluetooth is off or missing") or what is being done about it ("Asking living-room-pc:2407 to release the speakers"). Press the display to open the log: the last 500 lines, updated as they come. No terminal is needed for that, on any platform.
 
 <p align="center"><img src="docs/log.png" alt="The log viewer" width="320"></p>
 
@@ -56,7 +56,7 @@ The display of the remote tells what the app is doing: "Searching…", "Connecti
 
 ### Options
 
-By default the app listens on all interfaces on port 5000. To change that:
+By default the app listens on all interfaces on port 2407. To change that:
 
 ```bash
 z407 --ip 127.0.0.1 --port 8080
@@ -67,12 +67,12 @@ z407 --ip 127.0.0.1 --port 8080
 The speakers accept one Bluetooth LE controller at a time, so a second copy of this app, on another computer or on a phone, cannot connect while the first one holds the link. To let the copy you are using take them, tell each copy where the others run:
 
 1. Press **Devices** on the remote (in the System row).
-2. Enter the other device as `host` or `host:port` (for example `living-room-pc` or `192.168.1.20:5001`; the port defaults to 5000) and press **Add**. The foot of the panel shows what to enter for the device you are looking at.
+2. Enter the other device as `host` or `host:port` (for example `living-room-pc` or `192.168.1.20:2408`; the port defaults to 2407) and press **Add**. The foot of the panel shows what to enter for the device you are looking at.
 3. Do the same on the other devices, so that each one lists the rest.
 
 Every change is saved at once and takes effect at once; the cross next to an entry removes it. On a computer the list is stored in `z407/config.json` in your configuration directory (`%AppData%` on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS).
 
-Or start the app with `--peers living-room-pc,192.168.1.20:5001`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the remote during that run.
+Or start the app with `--peers living-room-pc,192.168.1.20:2408`. This replaces the saved list for that run only; the saved list is not changed and cannot be edited on the remote during that run.
 
 When a copy has looked for the speakers for 3 seconds without seeing them (free speakers show up within a second or two), it sends `POST /api/disconnect` to every device on its list. A copy that receives this lets go of the speakers and stays open: its display says "Disconnected" and "Another device took the speakers", and shows a Reconnect key. The searching copy then connects, usually within a few seconds. If the speakers were seen but the connection does not come about, the same happens after 10 seconds. Devices that are off or not running the app are skipped.
 
@@ -122,7 +122,7 @@ Good to know:
 - On first start the app asks for the "Nearby devices" permission (Android 12 and newer) or the Location permission (Android 8 to 11, where Bluetooth scans require it and Location must be switched on). The app does not use your position.
 - **It keeps working in the background.** Once opened, the app stays connected when you switch to another app or turn the screen off. A notification says so for as long as it does: it shows the state of the connection ("Connected", "Searching…", "Disconnected"), has keys for volume down, play/pause and volume up, and opens the app when tapped. Expanded, it also has a Quit key. On Android 13 and newer the app asks for permission to show it; without the permission the app still works in the background, but you do not get the keys.
 - **To stop it**, expand the notification and press Quit, or swipe the app away in the list of recent apps. The notification disappears, the speakers are released for other controllers, and the phone stops serving the remote.
-- **Other devices can use the phone's remote.** While the app runs it serves the remote to the network on port 5000, like the desktop app: open the address shown under "Web address" in a browser on another device. As on the computer, there is no authentication, so anyone on your network can control the speakers through it and read the app's log.
+- **Other devices can use the phone's remote.** While the app runs it serves the remote to the network on port 2407, like the desktop app: open the address shown under "Web address" in a browser on another device. As on the computer, there is no authentication, so anyone on your network can control the speakers through it and read the app's log.
 - **Sharing the speakers with a computer** works as described under [Several devices](#several-devices): press Devices, enter the computer's address, and enter the phone's address (the one under "Web address") on the computer. Whichever you start or press Reconnect on takes the speakers; the other shows "Disconnected" and a Reconnect key. The phone and the computer must be on the same network. The phone's address may change when it joins the network again, unless your router always gives it the same one.
 - A phone that is still looking for the speakers asks the devices on its list once more each time you bring the app to the screen.
 
@@ -147,7 +147,7 @@ The Bluetooth side cannot be tested automatically; [android/TESTING.md](android/
 
 - The speakers accept only one BLE controller at a time. Disconnect any phone that is connected to them, and see [Several computers](#several-devices) if another computer runs this app.
 - If your phone cannot load the page, check the firewall on the computer, and if you use a VPN enable "Allow LAN access" or split tunneling.
-- The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open `http://127.0.0.1:5000` in any browser.
+- The app window does not open: check the log (on Windows `%LOCALAPPDATA%\z407\z407.log`). You can always open `http://127.0.0.1:2407` in any browser.
 - On Windows, with `z407_console.exe`, clicking inside the terminal can pause the program; press Enter to resume it.
 - If connecting keeps failing, try in order: power-cycle the speakers, toggle Bluetooth on the computer, unpair and re-pair the speakers, restart the computer.
 

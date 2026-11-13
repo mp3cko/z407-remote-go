@@ -21,7 +21,7 @@ class Api(
     private val notice: () -> String = { "" },
     /** What the log viewer shows; null = nothing. */
     private val history: LogHistory? = null,
-    /** Where other devices can open the remote ("http://192.168.1.30:5000"); none while no server runs. */
+    /** Where other devices can open the remote ("http://192.168.1.30:2407"); none while no server runs. */
     private val addrs: () -> List<String> = { emptyList() },
     /** Another device asks for the speakers (POST /api/disconnect): lets go of them until [reconnect]. */
     private val disconnect: () -> Unit = {},

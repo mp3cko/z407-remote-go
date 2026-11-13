@@ -19,7 +19,7 @@ import (
 
 // DefaultPort is the port the app listens on unless told otherwise, and so
 // the port assumed for a peer given without one.
-const DefaultPort = 5000
+const DefaultPort = 2407
 
 // MaxPeers bounds the list; a household has a handful of computers.
 const MaxPeers = 16
@@ -32,7 +32,7 @@ var ErrFixed = errors.New("the list was set with --peers for this run and cannot
 func Normalize(entry string, defaultPort int) (string, error) {
 	entry = strings.TrimSpace(entry)
 	bad := func(why string) (string, error) {
-		return "", fmt.Errorf("%q is not a valid address (%s). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000", entry, why)
+		return "", fmt.Errorf("%q is not a valid address (%s). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408", entry, why)
 	}
 	if entry == "" {
 		return bad("it is empty")

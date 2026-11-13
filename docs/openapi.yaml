@@ -5,7 +5,7 @@ info:
   summary: Control Logitech Z407 speakers through the Z407 Remote app.
   description: |
     The API of the Z407 Remote app (desktop and Android), the same one the
-    remote's page uses. The app serves it on port 5000 by default
+    remote's page uses. The app serves it on port 2407 by default
     (`z407 --port` changes that).
 
     There is no authentication: anyone who can reach the port can control
@@ -21,7 +21,7 @@ externalDocs:
   description: README
   url: https://github.com/mp3cko/z407-remote-go#readme
 servers:
-  - url: http://127.0.0.1:5000
+  - url: http://127.0.0.1:2407
     description: The app on this machine
   - url: http://{host}:{port}
     description: The app on another device
@@ -29,7 +29,7 @@ servers:
       host:
         default: 192.168.1.20
       port:
-        default: "5000"
+        default: "2407"
 # No authentication: see the description above.
 security: []
 tags:
@@ -155,7 +155,7 @@ paths:
                     type: array
                     items: { type: string }
                     description: Devices as host:port.
-                    examples: [["living-room-pc:5000", "192.168.1.20:5000"]]
+                    examples: [["living-room-pc:2407", "192.168.1.20:2407"]]
                   fixed:
                     type: boolean
                     description: The list was given with `--peers` and cannot be changed here.
@@ -173,9 +173,9 @@ paths:
           required: true
           description: |
             Comma-separated devices, each a name or IP address, optionally
-            with a port (default 5000). Empty clears the list.
+            with a port (default 2407). Empty clears the list.
           schema: { type: string }
-          example: living-room-pc,192.168.1.20:5001
+          example: living-room-pc,192.168.1.20:2408
       responses:
         "200":
           description: Saved.
@@ -218,7 +218,7 @@ paths:
                   urls:
                     type: array
                     items: { type: string, format: uri }
-                    examples: [["http://192.168.1.20:5000"]]
+                    examples: [["http://192.168.1.20:2407"]]
 
   /api/log:
     get:

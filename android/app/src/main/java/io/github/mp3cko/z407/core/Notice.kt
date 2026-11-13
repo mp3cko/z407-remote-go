@@ -2,7 +2,7 @@ package io.github.mp3cko.z407.core
 
 /**
  * A short message for the remote's display, such as "Asking
- * living-room-pc:5000 to release the speakers". It goes away by itself.
+ * living-room-pc:2407 to release the speakers". It goes away by itself.
  * A port of internal/server/notice.go.
  */
 class Notice(private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 }) {

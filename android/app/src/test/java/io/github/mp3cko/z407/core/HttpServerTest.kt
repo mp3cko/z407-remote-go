@@ -75,8 +75,8 @@ class HttpServerTest {
     @Test
     fun queryParametersAreDecoded() {
         val saved = ask("POST", "/api/peers?list=desk%2C%20192.168.1.20%3A5001")
-        assertEquals("{\"peers\":[\"desk:5000\",\"192.168.1.20:5001\"],\"success\":true}\n", saved.body)
-        assertEquals(listOf("desk:5000", "192.168.1.20:5001"), store.load())
+        assertEquals("{\"peers\":[\"desk:2407\",\"192.168.1.20:5001\"],\"success\":true}\n", saved.body)
+        assertEquals(listOf("desk:2407", "192.168.1.20:5001"), store.load())
     }
 
     @Test

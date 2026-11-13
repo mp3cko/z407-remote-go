@@ -46,12 +46,12 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		{"no addresses", connected, "GET", "/api/addrs", 200, `{"urls":[]}`},
 		{"no peers", connected, "GET", "/api/peers", 200, `{"fixed":false,"peers":[]}`},
 		{"save peers", connected, "POST", "/api/peers?list=" + q("desk, 192.168.1.20:5001"), 200,
-			`{"peers":["desk:5000","192.168.1.20:5001"],"success":true}`},
+			`{"peers":["desk:2407","192.168.1.20:5001"],"success":true}`},
 		{"empty peers", connected, "POST", "/api/peers?list=", 200, `{"peers":[],"success":true}`},
 		{"bad peer", connected, "POST", "/api/peers?list=" + q("good-pc, http://bad/"), 400,
-			`{"error":"\"http://bad/\" is not a valid address (leave out http:// and any path). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000","success":false}`},
+			`{"error":"\"http://bad/\" is not a valid address (leave out http:// and any path). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408","success":false}`},
 		{"escaping", connected, "POST", "/api/peers?list=" + q("<a&b>"), 400,
-			`{"error":"\"\u003ca\u0026b\u003e\" is not a valid address (the name may only contain letters, digits, hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000","success":false}`},
+			`{"error":"\"\u003ca\u0026b\u003e\" is not a valid address (the name may only contain letters, digits, hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408","success":false}`},
 		{"disconnect", connected, "POST", "/api/disconnect", 200, `{"success":true}`},
 		{"reconnect", connected, "POST", "/api/reconnect", 200, `{"success":true}`},
 		{"status released", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, phase: "released"} },
@@ -87,7 +87,7 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		}
 	}
 
-	if rec := do(withPeers, "GET", "/api/peers"); rec.Body.String() != `{"fixed":false,"peers":["desk:5000","192.168.1.20:5001"]}`+"\n" {
+	if rec := do(withPeers, "GET", "/api/peers"); rec.Body.String() != `{"fixed":false,"peers":["desk:2407","192.168.1.20:5001"]}`+"\n" {
 		t.Errorf("saved peers: %s", rec.Body)
 	}
 }

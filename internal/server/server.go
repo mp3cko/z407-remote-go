@@ -74,7 +74,7 @@ func WithPresence(p *Presence) Option { return func(s *srv) { s.presence = p } }
 func WithPeers(p *peers.Store) Option { return func(s *srv) { s.peers = p } }
 
 // WithAddrs sets the function listing the addresses the remote can be
-// opened at from other devices ("http://192.168.1.20:5000"), best guess
+// opened at from other devices ("http://192.168.1.20:2407"), best guess
 // first. The page shows them (default: none).
 func WithAddrs(fn func() []string) Option { return func(s *srv) { s.addrs = fn } }
 

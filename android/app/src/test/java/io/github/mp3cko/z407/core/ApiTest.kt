@@ -53,7 +53,7 @@ class ApiTest {
         history.add(LogHistory.ERROR, "Dial failed: \"x\" <y>")
         history.add(LogHistory.OK, "Connected to Z407")
         val notice = Notice()
-        notice.set("Asking desk:5000 to release the speakers")
+        notice.set("Asking desk:2407 to release the speakers")
         val api = Api(SpeakerManager(FakeDialer()), store, notice::get, history)
 
         val one = "{\"level\":\"info\",\"n\":1,\"text\":\"Searching\",\"time\":\"21:04:05\"}"
@@ -66,7 +66,7 @@ class ApiTest {
         check(api.handle("GET", "/api/log", null, "junk"), 200, all)
         check(
             api.handle("GET", "/api/status", null), 200,
-            "{\"connected\":false,\"note\":\"Asking desk:5000 to release the speakers\",\"phase\":\"waiting\",\"problem\":\"\",\"volume\":50}\n",
+            "{\"connected\":false,\"note\":\"Asking desk:2407 to release the speakers\",\"phase\":\"waiting\",\"problem\":\"\",\"volume\":50}\n",
         )
     }
 
@@ -130,10 +130,10 @@ class ApiTest {
         check(api.handle("GET", "/api/peers", null), 200, "{\"fixed\":false,\"peers\":[]}\n")
         check(
             api.handle("POST", "/api/peers", "desk, 192.168.1.20:5001"), 200,
-            "{\"peers\":[\"desk:5000\",\"192.168.1.20:5001\"],\"success\":true}\n",
+            "{\"peers\":[\"desk:2407\",\"192.168.1.20:5001\"],\"success\":true}\n",
         )
-        assertEquals(listOf("desk:5000", "192.168.1.20:5001"), store.load())
-        check(api.handle("GET", "/api/peers", null), 200, "{\"fixed\":false,\"peers\":[\"desk:5000\",\"192.168.1.20:5001\"]}\n")
+        assertEquals(listOf("desk:2407", "192.168.1.20:5001"), store.load())
+        check(api.handle("GET", "/api/peers", null), 200, "{\"fixed\":false,\"peers\":[\"desk:2407\",\"192.168.1.20:5001\"]}\n")
         // The list may be emptied, with or without the parameter.
         check(api.handle("POST", "/api/peers", ""), 200, "{\"peers\":[],\"success\":true}\n")
         check(api.handle("POST", "/api/peers", null), 200, "{\"peers\":[],\"success\":true}\n")
@@ -146,9 +146,9 @@ class ApiTest {
         check(
             api.handle("POST", "/api/peers", "good-pc, http://bad/"), 400,
             "{\"error\":\"\\\"http://bad/\\\" is not a valid address (leave out http:// and any path). " +
-                "Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000\",\"success\":false}\n",
+                "Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408\",\"success\":false}\n",
         )
-        assertEquals(listOf("good-pc:5000"), store.load())
+        assertEquals(listOf("good-pc:2407"), store.load())
     }
 
     @Test
@@ -157,7 +157,7 @@ class ApiTest {
         check(
             disconnectedApi().handle("POST", "/api/peers", "<a&b>"), 400,
             "{\"error\":\"\\\"\\u003ca\\u0026b\\u003e\\\" is not a valid address (the name may only contain letters, digits, " +
-                "hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:5000\",\"success\":false}\n",
+                "hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408\",\"success\":false}\n",
         )
     }
 

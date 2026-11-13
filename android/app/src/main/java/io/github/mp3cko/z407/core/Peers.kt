@@ -7,7 +7,7 @@ package io.github.mp3cko.z407.core
  */
 object Peers {
     /** The desktop app's default port, assumed for a peer given without one. */
-    const val DEFAULT_PORT = 5000
+    const val DEFAULT_PORT = 2407
     const val MAX_PEERS = 16
 
     class InvalidPeerException(message: String) : Exception(message)
@@ -18,7 +18,7 @@ object Peers {
         val entry = raw.trim()
         fun bad(why: String): Nothing = throw InvalidPeerException(
             "\"$entry\" is not a valid address ($why). Use a name or IP address, " +
-                "optionally with a port: living-room-pc or 192.168.1.20:5000"
+                "optionally with a port: living-room-pc or 192.168.1.20:2408"
         )
         if (entry.isEmpty()) bad("it is empty")
         if (entry.contains("://") || entry.any { it in "/?#@ " }) bad("leave out http:// and any path")

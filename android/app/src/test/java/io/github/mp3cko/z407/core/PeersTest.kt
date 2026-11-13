@@ -10,17 +10,17 @@ class PeersTest {
     @Test
     fun normalizeAccepts() {
         val good = mapOf(
-            "living-room-pc" to "living-room-pc:5000",
-            "  Desk.Local " to "desk.local:5000",
+            "living-room-pc" to "living-room-pc:2407",
+            "  Desk.Local " to "desk.local:2407",
             "pc:8080" to "pc:8080",
-            "192.168.1.20" to "192.168.1.20:5000",
+            "192.168.1.20" to "192.168.1.20:2407",
             "192.168.1.20:5001" to "192.168.1.20:5001",
-            "localhost" to "localhost:5000",
-            "my_pc" to "my_pc:5000",
-            "[fe80::1]" to "[fe80::1]:5000",
+            "localhost" to "localhost:2407",
+            "my_pc" to "my_pc:2407",
+            "[fe80::1]" to "[fe80::1]:2407",
             "[fe80::1]:6000" to "[fe80::1]:6000",
-            "fe80::1" to "[fe80::1]:5000",
-            "pc1.home.example.de" to "pc1.home.example.de:5000",
+            "fe80::1" to "[fe80::1]:2407",
+            "pc1.home.example.de" to "pc1.home.example.de:2407",
         )
         for ((input, want) in good) assertEquals(input, want, Peers.normalize(input))
     }
@@ -36,13 +36,13 @@ class PeersTest {
         for (input in bad) {
             val e = assertThrows(input, Peers.InvalidPeerException::class.java) { Peers.normalize(input) }
             assertTrue(e.message, e.message!!.contains("not a valid address"))
-            assertTrue(e.message, e.message!!.contains("192.168.1.20:5000"))
+            assertTrue(e.message, e.message!!.contains("192.168.1.20:2408"))
         }
     }
 
     @Test
     fun parseList() {
-        assertEquals(listOf("pc:5000", "192.168.1.20:5001"), Peers.parseList(" pc , 192.168.1.20:5001,, PC:5000 ,"))
+        assertEquals(listOf("pc:2407", "192.168.1.20:5001"), Peers.parseList(" pc , 192.168.1.20:5001,, PC:2407 ,"))
         for (empty in listOf("", " ", ",,")) assertEquals(emptyList<String>(), Peers.parseList(empty))
         val e = assertThrows(Peers.InvalidPeerException::class.java) { Peers.parseList("pc, bad host") }
         assertTrue(e.message, e.message!!.contains("\"bad host\""))
