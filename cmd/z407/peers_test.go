@@ -105,7 +105,7 @@ func TestTakeoverWaitsWhileReleasedAndAsksAgainAfterReconnect(t *testing.T) {
 
 	d := deps{
 		sp:            &searchingBackend{fakeBackend: newFakeBackend()},
-		takeover:      peers.Takeover{Timeout: 30 * time.Millisecond},
+		takeover:      peers.Takeover{Timeout: time.Hour}, // the first round must not wait for it
 		takeoverEvery: 5 * time.Millisecond,
 	}
 	a := startApp(t, d, "--peers", peerAddr)
@@ -212,7 +212,7 @@ type searchingBackend struct {
 
 func (s *searchingBackend) Status() (bool, int) { return s.connected.Load(), 50 }
 
-func TestTakeoverAsksPeersWhenSpeakersAreNotFound(t *testing.T) {
+func TestTakeoverAsksPeersAtStart(t *testing.T) {
 	var mu sync.Mutex
 	var hits []string
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +226,7 @@ func TestTakeoverAsksPeersWhenSpeakersAreNotFound(t *testing.T) {
 
 	d := deps{
 		sp:            &searchingBackend{fakeBackend: newFakeBackend()},
-		takeover:      peers.Takeover{Timeout: 30 * time.Millisecond},
+		takeover:      peers.Takeover{Timeout: time.Hour}, // the first round must not wait for it
 		takeoverEvery: 5 * time.Millisecond,
 	}
 	a := startApp(t, d, "--peers", peerAddr)
@@ -249,7 +249,7 @@ func TestTakeoverAsksPeersWhenSpeakersAreNotFound(t *testing.T) {
 	if !reflect.DeepEqual(hits, []string{"POST /api/disconnect"}) {
 		t.Fatalf("peer got %v", hits)
 	}
-	if !strings.Contains(a.out.String(), "asked "+peerAddr+" to release them") {
+	if !strings.Contains(a.out.String(), "Asked "+peerAddr+" to release the speakers (starting)") {
 		t.Errorf("output: %s", a.out.String())
 	}
 }

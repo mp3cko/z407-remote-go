@@ -87,10 +87,22 @@ func (r *rig) advance(d time.Duration) {
 
 var disconnect = []string{"POST /api/disconnect"}
 
-func TestNoCallBeforeTimeout(t *testing.T) {
+// The first round does not wait: the peers are asked as the search starts.
+func TestFirstRoundIsAtOnce(t *testing.T) {
 	p := newPeer(t)
 	r := newRig(p.addr())
 	r.advance(0)
+	if !reflect.DeepEqual(p.got(), disconnect) {
+		t.Fatalf("peer not asked at the start: %v", p.got())
+	}
+}
+
+// A peer added after the first round waits for the search to time out.
+func TestLaterPeerWaitsForTimeout(t *testing.T) {
+	r := newRig()
+	r.advance(0)
+	p := newPeer(t)
+	r.peers = []string{p.addr()}
 	r.advance(SearchTimeout - time.Millisecond)
 	if len(p.got()) != 0 {
 		t.Fatalf("peer asked before the timeout: %v", p.got())
@@ -102,10 +114,17 @@ func TestNoCallBeforeTimeout(t *testing.T) {
 }
 
 func TestNoCallWhileConnected(t *testing.T) {
-	p := newPeer(t)
-	r := newRig(p.addr())
+	r := newRig()
 	r.connected = true
 	r.advance(0)
+	r.advance(10 * SearchTimeout)
+	r.connected = false
+	r.advance(0) // the first round, with nobody to ask
+	r.connected = true
+	r.advance(time.Second)
+
+	p := newPeer(t)
+	r.peers = []string{p.addr()}
 	r.advance(10 * SearchTimeout)
 	if len(p.got()) != 0 {
 		t.Fatalf("peer asked while connected: %v", p.got())
@@ -133,25 +152,25 @@ func TestNoCallWhileConnected(t *testing.T) {
 	}
 }
 
-func TestEveryPeerIsAskedInOrder(t *testing.T) {
+func TestEveryPeerIsAskedAtTheSameTime(t *testing.T) {
 	a, b, c := newPeer(t), newPeer(t), newPeer(t)
 	r := newRig(a.addr(), b.addr(), c.addr())
-	var order []string
+	// Every request waits until all three have come in: asked one after
+	// another, they would time out.
+	var arrived sync.WaitGroup
+	arrived.Add(3)
 	r.Post = func(ctx context.Context, peer string) (string, error) {
-		order = append(order, peer)
+		arrived.Done()
+		arrived.Wait()
 		return PostDisconnect(ctx, peer)
 	}
 	r.advance(0)
-	r.advance(SearchTimeout)
 	for _, p := range []*peerServer{a, b, c} {
 		if !reflect.DeepEqual(p.got(), disconnect) {
 			t.Errorf("peer %s got %v", p.addr(), p.got())
 		}
 	}
-	if !reflect.DeepEqual(order, []string{a.addr(), b.addr(), c.addr()}) {
-		t.Errorf("order: %v", order)
-	}
-	if len(r.log) != 3 || !strings.Contains(r.log[0], "asked %s to release them: %s") {
+	if len(r.log) != 3 || !strings.Contains(r.log[0], "to release the speakers (%s): %s") {
 		t.Errorf("log: %q", r.log)
 	}
 }
@@ -160,11 +179,10 @@ func TestUnreachablePeerIsSkipped(t *testing.T) {
 	down, up := unreachable(t), newPeer(t)
 	r := newRig(down, up.addr())
 	r.advance(0)
-	r.advance(SearchTimeout)
 	if !reflect.DeepEqual(up.got(), disconnect) {
-		t.Fatalf("the peer after an unreachable one got %v", up.got())
+		t.Fatalf("the peer next to an unreachable one got %v", up.got())
 	}
-	if len(r.log) != 2 || !strings.Contains(r.log[0], "did not answer") {
+	if len(r.log) != 2 || !strings.Contains(strings.Join(r.log, "|"), "did not answer") {
 		t.Fatalf("log: %q", r.log)
 	}
 	for _, l := range r.levels {
@@ -182,14 +200,13 @@ func TestSlowPeerTimesOut(t *testing.T) {
 	up := newPeer(t)
 	r := newRig(strings.TrimPrefix(slow.URL, "http://"), up.addr())
 	r.PeerTimeout = 300 * time.Millisecond // short, but enough for the healthy peer on a slow machine
-	r.advance(0)
 	start := time.Now()
-	r.advance(SearchTimeout)
+	r.advance(0)
 	if time.Since(start) > 5*time.Second {
 		t.Fatal("a slow peer held up the takeover")
 	}
 	if !reflect.DeepEqual(up.got(), disconnect) {
-		t.Fatalf("peer after the slow one got %v", up.got())
+		t.Fatalf("peer next to the slow one got %v", up.got())
 	}
 }
 
@@ -281,10 +298,9 @@ func TestSelfCheck(t *testing.T) {
 func TestCheckStopsWhenCancelled(t *testing.T) {
 	p := newPeer(t)
 	r := newRig(p.addr())
-	r.advance(0)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	r.Check(ctx, r.now.Add(SearchTimeout))
+	r.Check(ctx, r.now)
 	if len(p.got()) != 0 {
 		t.Fatalf("asked a peer while shutting down: %v", p.got())
 	}
@@ -340,10 +356,11 @@ func TestPostDisconnectAnswer(t *testing.T) {
 // and no peer must be closed for that.
 func TestSeenSpeakersGetMoreTime(t *testing.T) {
 	p := newPeer(t)
-	r := newRig(p.addr())
+	r := newRig()
 	found := true
 	r.Found = func() bool { return found }
-	r.advance(0)
+	r.advance(0) // the first round, before the peer was added
+	r.peers = []string{p.addr()}
 	r.advance(SearchTimeout)
 	r.advance(ConnectTimeout - SearchTimeout - time.Millisecond)
 	if len(p.got()) != 0 {
@@ -356,9 +373,10 @@ func TestSeenSpeakersGetMoreTime(t *testing.T) {
 
 	// Not seen in the next attempt: the short limit applies again.
 	q := newPeer(t)
-	r2 := newRig(q.addr())
+	r2 := newRig()
 	r2.Found = func() bool { return false }
 	r2.advance(0)
+	r2.peers = []string{q.addr()}
 	r2.advance(SearchTimeout)
 	if !reflect.DeepEqual(q.got(), disconnect) {
 		t.Fatalf("peer got %v", q.got())
@@ -388,14 +406,13 @@ func TestNotesTellWhatIsGoingOn(t *testing.T) {
 }
 
 // An instance that let go of the speakers asks nobody; told to reconnect, it
-// starts a new search and asks again, also peers asked before.
+// starts a new session and at once asks again, also peers asked before.
 func TestReleasedAsksNobodyAndStartsAfresh(t *testing.T) {
 	p := newPeer(t)
 	r := newRig(p.addr())
 	released := false
 	r.Released = func() bool { return released }
 	r.advance(0)
-	r.advance(SearchTimeout)
 	if !reflect.DeepEqual(p.got(), disconnect) {
 		t.Fatalf("peer not asked: %v", p.got())
 	}
@@ -405,13 +422,52 @@ func TestReleasedAsksNobodyAndStartsAfresh(t *testing.T) {
 		t.Fatalf("asked while released: %v", p.got())
 	}
 	released = false
-	r.advance(time.Second) // the new search begins
-	r.advance(SearchTimeout - time.Millisecond)
-	if len(p.got()) != 1 {
-		t.Fatalf("asked before the new search timed out: %v", p.got())
-	}
-	r.advance(time.Millisecond)
+	r.advance(time.Second) // the new session begins
 	if len(p.got()) != 2 {
-		t.Fatalf("not asked again after reconnecting: %v", p.got())
+		t.Fatalf("not asked again at once after reconnecting: %v", p.got())
+	}
+}
+
+// Several peers make two notes in all: what is being done, and the outcome.
+func TestNotesSumUpARound(t *testing.T) {
+	for _, c := range []struct {
+		answers map[string]string // "" = no answer
+		want    string
+	}{
+		{map[string]string{"a:5000": "200 ok", "b:5000": "", "c:5000": "200 ok"}, "a:5000 and c:5000 released the speakers"},
+		{map[string]string{"a:5000": "501 no", "b:5000": "", "c:5000": ""}, "a:5000 did not release the speakers"},
+		{map[string]string{"a:5000": "", "b:5000": "", "c:5000": ""}, "No other device answered"},
+	} {
+		r := newRig("a:5000", "b:5000", "c:5000")
+		var notes []string
+		r.Note = func(s string) { notes = append(notes, s) }
+		r.Post = func(_ context.Context, peer string) (string, error) {
+			if a := c.answers[peer]; a != "" {
+				return a, nil
+			}
+			return "", errors.New("connection refused")
+		}
+		r.advance(0)
+		if want := []string{"Asking 3 other devices to release the speakers", c.want}; !reflect.DeepEqual(notes, want) {
+			t.Errorf("got %q, want %q", notes, want)
+		}
+	}
+	// This computer itself is not counted, and with nobody else nothing is said.
+	r := newRig("me:5000", "a:5000")
+	r.IsSelf = func(p string) bool { return p == "me:5000" }
+	var notes []string
+	r.Note = func(s string) { notes = append(notes, s) }
+	r.Post = func(context.Context, string) (string, error) { return "200 ok", nil }
+	r.advance(0)
+	if want := []string{"Asking a:5000 to release the speakers", "a:5000 released the speakers"}; !reflect.DeepEqual(notes, want) {
+		t.Errorf("got %q", notes)
+	}
+	r = newRig("me:5000")
+	r.IsSelf = func(string) bool { return true }
+	notes = nil
+	r.Note = func(s string) { notes = append(notes, s) }
+	r.advance(0)
+	if len(notes) != 0 {
+		t.Errorf("notes with nobody to ask: %q", notes)
 	}
 }
