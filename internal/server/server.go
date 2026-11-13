@@ -35,6 +35,10 @@ func Icon() []byte {
 
 const notConnectedMsg = "Speakers not connected. Waiting for background connection..."
 
+// notHoldingMsg answers a request for the speakers from a device that does
+// not hold them: it is still looking for them itself.
+const notHoldingMsg = "This device does not hold the speakers: it is looking for them itself"
+
 // Speaker is the subset of speaker.Manager used by the HTTP handlers.
 type Speaker interface {
 	Status() (connected bool, volume int)
@@ -250,7 +254,17 @@ func (s *srv) savePeers(w http.ResponseWriter, r *http.Request) {
 // disconnect lets another device take the speakers over (they accept one
 // controller at a time): the app lets go of them and stays open. Its page
 // says so and offers to reconnect.
+//
+// An app that has not even seen the speakers holds nothing to let go of. It
+// refuses and goes on looking: two copies that start at the same moment ask
+// each other at once, and if both let go, neither connects.
 func (s *srv) disconnect(w http.ResponseWriter, _ *http.Request) {
+	connected, _ := s.sp.Status()
+	if phase, _ := s.sp.Progress(); !connected && phase != "connecting" && phase != "released" {
+		s.log.Infof("Another device asked for the speakers, but this one does not hold them: looking for them on")
+		writeJSON(w, http.StatusConflict, map[string]any{"success": false, "error": notHoldingMsg})
+		return
+	}
 	// Closing the link can take a moment; the caller does not wait for it.
 	go s.sp.Release()
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})

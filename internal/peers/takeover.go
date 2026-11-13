@@ -148,7 +148,7 @@ func (t *Takeover) askAll(ctx context.Context, peers []string, first bool) {
 	}
 	why := "speakers not found"
 	if first {
-		why = "starting"
+		why = "new session"
 	}
 	outcome := make([]int, len(others))
 	var wg sync.WaitGroup

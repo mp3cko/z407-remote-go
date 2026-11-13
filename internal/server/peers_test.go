@@ -148,11 +148,58 @@ func TestDisconnectAndReconnect(t *testing.T) {
 	}
 }
 
+// slowRelease takes its time to let go of the speakers.
+type slowRelease struct {
+	*fakeSpeaker
+	block chan struct{}
+}
+
+func (s slowRelease) Release() { <-s.block }
+
+// An app that has not seen the speakers has nothing to let go of: it says
+// so and goes on looking. One that is setting up the connection, or has
+// let go already, does what it is asked.
+func TestDisconnectOnlyWhenHolding(t *testing.T) {
+	for _, c := range []struct {
+		sp      *fakeSpeaker
+		code    int
+		release bool
+	}{
+		{&fakeSpeaker{phase: "searching"}, 409, false},
+		{&fakeSpeaker{}, 409, false}, // between attempts
+		{&fakeSpeaker{phase: "connecting"}, 200, true},
+		{&fakeSpeaker{phase: "released"}, 200, true},
+		{&fakeSpeaker{connected: true}, 200, true},
+	} {
+		rec := do(New(c.sp, quiet), "POST", "/api/disconnect")
+		if rec.Code != c.code {
+			t.Errorf("phase %q connected=%v: code=%d body=%s", c.sp.phase, c.sp.connected, rec.Code, rec.Body)
+		}
+		if c.code == 409 {
+			if m := decode(t, rec); m["success"] != false || m["error"] != notHoldingMsg {
+				t.Errorf("body: %s", rec.Body)
+			}
+		}
+		if !c.release {
+			if calls := c.sp.got(); len(calls) != 0 {
+				t.Errorf("phase %q: released anyway: %v", c.sp.phase, calls)
+			}
+			continue
+		}
+		deadline := time.Now().Add(2 * time.Second) // Release runs in the background
+		for len(c.sp.got()) == 0 {
+			if time.Now().After(deadline) {
+				t.Fatalf("phase %q connected=%v: not released", c.sp.phase, c.sp.connected)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
 // The caller must not wait for the link to close.
 func TestDisconnectAnswersFirst(t *testing.T) {
-	sp := &fakeSpeaker{}
-	sp.mu.Lock() // Release blocks
-	defer sp.mu.Unlock()
+	sp := slowRelease{&fakeSpeaker{connected: true}, make(chan struct{})}
+	defer close(sp.block)
 	ts := httptest.NewServer(New(sp, quiet))
 	defer ts.Close()
 	resp, err := (&http.Client{Timeout: 2 * time.Second}).Post(ts.URL+"/api/disconnect", "", nil)

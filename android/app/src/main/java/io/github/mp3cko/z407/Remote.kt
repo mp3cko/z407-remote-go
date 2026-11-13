@@ -56,6 +56,7 @@ class Remote private constructor(context: Context) {
         disconnect = { Thread(::release, "z407-release").start() },
         reconnect = ::reconnect,
         released = { released },
+        log = ::log,
     )
     private val server = HttpServer(api, ::webFile, ::log)
 

@@ -54,7 +54,7 @@ To let the device you are using take the speakers from another one, each needs t
 2. Enter each other device as `host` or `host:port` (for example `living-room-pc` or `192.168.1.20`; the port defaults to 2407) and press **Add**. The foot of the panel shows what to enter for the device you are looking at.
 3. Do the same on the other devices.
 
-From then on a device that starts, or whose Reconnect key is pressed, asks all the others at once to let go of the speakers while it looks for them itself; a device added to the list later is asked once the speakers have not shown up for 3 seconds. The one that lets go shows "Disconnected" and a **Reconnect** key, which takes the speakers back. Devices only take the speakers from each other when one is started or Reconnect is pressed, so two of them never fight over the speakers. Devices that are off are skipped.
+From then on a device that starts, or whose Reconnect key is pressed, asks all the others at once to let go of the speakers while it looks for them itself; a device added to the list later is asked once the speakers have not shown up for 3 seconds. The one that lets go shows "Disconnected" and a **Reconnect** key, which takes the speakers back. Devices only take the speakers from each other when one is started or Reconnect is pressed, so two of them never fight over the speakers. A device that is still looking for the speakers itself does not let go when asked, so two devices started at the same moment do not both end up disconnected. Devices that are off are skipped.
 
 The list is saved in `z407/config.json` in your configuration directory (`%AppData%`, `~/Library/Application Support`, `~/.config`).
 

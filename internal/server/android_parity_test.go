@@ -53,6 +53,8 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		{"escaping", connected, "POST", "/api/peers?list=" + q("<a&b>"), 400,
 			`{"error":"\"\u003ca\u0026b\u003e\" is not a valid address (the name may only contain letters, digits, hyphens and dots). Use a name or IP address, optionally with a port: living-room-pc or 192.168.1.20:2408","success":false}`},
 		{"disconnect", connected, "POST", "/api/disconnect", 200, `{"success":true}`},
+		{"disconnect, not holding", func() *fakeSpeaker { return &fakeSpeaker{phase: "searching"} }, "POST", "/api/disconnect", 409,
+			`{"error":"This device does not hold the speakers: it is looking for them itself","success":false}`},
 		{"reconnect", connected, "POST", "/api/reconnect", 200, `{"success":true}`},
 		{"status released", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, phase: "released"} },
 			"GET", "/api/status", 200, `{"connected":false,"note":"","phase":"released","problem":"","volume":50}`},

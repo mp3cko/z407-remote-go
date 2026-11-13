@@ -110,15 +110,24 @@ paths:
         The app lets go of the speakers, so that another device can connect,
         and stays open. It does not try to connect again until
         `/api/reconnect`; meanwhile `/api/status` reports the phase
-        `released`. A copy of the app that cannot find the speakers sends
-        this to the devices on its list. The answer comes before the
-        speakers are free, which takes a moment.
+        `released`. A copy of the app that starts, or cannot find the
+        speakers, sends this to the devices on its list. The answer comes
+        before the speakers are free, which takes a moment.
+
+        An app that is still looking for the speakers itself, without
+        having seen them, holds nothing to let go of: it refuses and goes
+        on looking.
       responses:
         "200":
-          description: The app is letting go.
+          description: The app is letting go (or has let go already).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Success" }
+        "409":
+          description: The app does not hold the speakers; it goes on looking for them.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Failure" }
 
   /api/reconnect:
     post:

@@ -104,19 +104,52 @@ func TestTakeoverWaitsWhileReleasedAndAsksAgainAfterReconnect(t *testing.T) {
 	}
 
 	d := deps{
-		sp:            &searchingBackend{fakeBackend: newFakeBackend()},
+		sp:            &searchingBackend{fakeBackend: newFakeBackend(), seen: true},
 		takeover:      peers.Takeover{Timeout: time.Hour}, // the first round must not wait for it
 		takeoverEvery: 5 * time.Millisecond,
 	}
 	a := startApp(t, d, "--peers", peerAddr)
 	waitHits(1)
-	a.request("POST", "/api/disconnect")
+	if code, _ := a.request("POST", "/api/disconnect"); code != 200 {
+		t.Fatalf("disconnect: %d", code)
+	}
 	time.Sleep(150 * time.Millisecond)
 	if n := hits.Load(); n != 1 {
 		t.Fatalf("asked %d times while released", n)
 	}
 	a.request("POST", "/api/reconnect")
 	waitHits(2)
+}
+
+// Two copies that are both still looking for the speakers ask each other
+// for them; neither holds them, so neither lets go, and both look on.
+func TestCopiesStartedTogetherBothLookOn(t *testing.T) {
+	start := func() (*app, *searchingBackend) {
+		sp := &searchingBackend{fakeBackend: newFakeBackend()}
+		return startApp(t, deps{
+			sp:            sp,
+			takeover:      peers.Takeover{Timeout: 20 * time.Millisecond},
+			takeoverEvery: 5 * time.Millisecond,
+		}), sp
+	}
+	a, spA := start()
+	b, spB := start()
+	if code, _ := a.request("POST", "/api/peers?list="+b.addr); code != 200 {
+		t.Fatalf("peers of a: %d", code)
+	}
+	if code, _ := b.request("POST", "/api/peers?list="+a.addr); code != 200 {
+		t.Fatalf("peers of b: %d", code)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(a.out.String(), "does not hold them") || !strings.Contains(b.out.String(), "does not hold them") {
+		if time.Now().After(deadline) {
+			t.Fatalf("the copies did not ask each other:\n%s\n%s", a.out.String(), b.out.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if spA.released.Load() || spB.released.Load() {
+		t.Fatalf("released: a=%v b=%v", spA.released.Load(), spB.released.Load())
+	}
 }
 
 func TestPeersSavedAcrossRestart(t *testing.T) {
@@ -204,13 +237,23 @@ func TestConfigProblemsDoNotStopTheApp(t *testing.T) {
 	}
 }
 
-// searchingBackend never finds the speakers.
+// searchingBackend never connects to the speakers. With seen set it has
+// found them and is setting up the connection, so it lets go when asked;
+// without, it holds nothing to let go of.
 type searchingBackend struct {
 	*fakeBackend
 	connected atomic.Bool
+	seen      bool
 }
 
 func (s *searchingBackend) Status() (bool, int) { return s.connected.Load(), 50 }
+
+func (s *searchingBackend) Progress() (string, string) {
+	if phase, problem := s.fakeBackend.Progress(); phase == "released" || !s.seen {
+		return phase, problem
+	}
+	return "connecting", ""
+}
 
 func TestTakeoverAsksPeersAtStart(t *testing.T) {
 	var mu sync.Mutex
@@ -249,7 +292,7 @@ func TestTakeoverAsksPeersAtStart(t *testing.T) {
 	if !reflect.DeepEqual(hits, []string{"POST /api/disconnect"}) {
 		t.Fatalf("peer got %v", hits)
 	}
-	if !strings.Contains(a.out.String(), "Asked "+peerAddr+" to release the speakers (starting)") {
+	if !strings.Contains(a.out.String(), "Asked "+peerAddr+" to release the speakers (new session)") {
 		t.Errorf("output: %s", a.out.String())
 	}
 }

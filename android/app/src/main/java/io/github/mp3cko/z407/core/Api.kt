@@ -29,9 +29,12 @@ class Api(
     private val reconnect: () -> Unit = {},
     /** Whether the speakers were let go of and not taken back yet. */
     private val released: () -> Boolean = { false },
+    private val log: (String) -> Unit = {},
 ) {
     companion object {
         const val NOT_CONNECTED = "Speakers not connected. Waiting for background connection..."
+        /** The answer to a request for the speakers from a device that does not hold them. */
+        const val NOT_HOLDING = "This device does not hold the speakers: it is looking for them itself"
     }
 
     private val commands: Map<String, () -> Unit> = mapOf(
@@ -68,12 +71,28 @@ class Api(
             // The page's event stream has no meaning here.
             "events" -> if (method == "GET") notFound() else methodNotAllowed()
             // Another device asks for the speakers; the page then offers to reconnect.
-            "disconnect", "reconnect" -> if (method == "POST") {
-                if (name == "disconnect") disconnect() else reconnect()
+            "disconnect" -> if (method == "POST") disconnectRequest() else methodNotAllowed()
+            "reconnect" -> if (method == "POST") {
+                reconnect()
                 json(200, "success" to true)
             } else methodNotAllowed()
             else -> if (method == "POST") command(name) else methodNotAllowed()
         }
+    }
+
+    /**
+     * An app that has not even seen the speakers holds nothing to let go of.
+     * It refuses and goes on looking: two copies that start at the same
+     * moment ask each other at once, and if both let go, neither connects.
+     */
+    private fun disconnectRequest(): ApiResponse {
+        val s = speaker.status()
+        if (!released() && !s.connected && s.phase != SpeakerManager.PHASE_CONNECTING) {
+            log("Another device asked for the speakers, but this one does not hold them: looking for them on")
+            return json(409, "error" to NOT_HOLDING, "success" to false)
+        }
+        disconnect()
+        return json(200, "success" to true)
     }
 
     private fun status(): ApiResponse {
@@ -128,7 +147,8 @@ class Api(
     }
 
     private val reasons = mapOf(
-        200 to "OK", 400 to "Bad Request", 404 to "Not Found", 500 to "Internal Server Error", 501 to "Not Implemented",
+        200 to "OK", 400 to "Bad Request", 404 to "Not Found", 409 to "Conflict", 500 to "Internal Server Error",
+        501 to "Not Implemented",
     )
 
     private fun encode(v: Any): String = when (v) {

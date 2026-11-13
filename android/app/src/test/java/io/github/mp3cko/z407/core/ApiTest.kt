@@ -182,6 +182,19 @@ class ApiTest {
     }
 
     @Test
+    fun disconnectRefusedWhileLooking() {
+        var released = false
+        val logged = mutableListOf<String>()
+        val api = Api(SpeakerManager(FakeDialer()), store, disconnect = { released = true }, log = { logged += it })
+        check(
+            api.handle("POST", "/api/disconnect", null), 409,
+            "{\"error\":\"This device does not hold the speakers: it is looking for them itself\",\"success\":false}\n",
+        )
+        assertEquals(false, released)
+        assertEquals(1, logged.size)
+    }
+
+    @Test
     fun webAddresses() {
         check(connectedApi().handle("GET", "/api/addrs", null), 200, "{\"urls\":[]}\n")
         assertEquals(405, connectedApi().handle("POST", "/api/addrs", null).status)

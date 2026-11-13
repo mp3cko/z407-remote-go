@@ -105,8 +105,8 @@ class Takeover(
     /** Asks [round] at the same time and waits for every answer. */
     private fun askAll(round: List<String>, first: Boolean) {
         note(if (round.size == 1) "Asking ${round[0]} to release the speakers" else "Asking ${round.size} other devices to release the speakers")
-        val why = if (first) "starting" else "speakers not found"
-        val outcome = IntArray(round.size)
+        val why = if (first) "new session" else "speakers not found"
+        val outcome = IntArray(round.size) { SILENT }
         val lines = arrayOfNulls<String>(round.size)
         val threads = round.mapIndexed { i, peer ->
             Thread({
@@ -116,8 +116,10 @@ class Takeover(
                     lines[i] = "Asked $peer to release the speakers ($why): $answer"
                 } catch (e: IOException) {
                     // Normal: that computer is off, or the app is not running there.
-                    outcome[i] = SILENT
                     lines[i] = "Other devices: $peer did not answer (${e.message})"
+                } catch (e: Exception) {
+                    // Uncaught, it would end the app.
+                    lines[i] = "Other devices: could not ask $peer ($e)"
                 }
             }, "z407-ask").apply { start() }
         }

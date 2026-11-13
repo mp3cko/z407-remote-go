@@ -143,7 +143,7 @@ class TakeoverTest {
         advance(0)
         assertEquals(peers.toSet(), calls.toSet())
         assertEquals(3, log.size)
-        assertTrue(log[0], log[0].contains("Asked a:5000 to release the speakers (starting): 200"))
+        assertTrue(log[0], log[0].contains("Asked a:5000 to release the speakers (new session): 200"))
     }
 
     @Test
