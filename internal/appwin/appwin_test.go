@@ -56,6 +56,10 @@ func TestFindBrowser(t *testing.T) {
 	brave := `C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe`
 	macChrome := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 	macUserBrave := "/Users/me/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+	vivaldi := `C:\Users\me\AppData\Local\Vivaldi\Application\vivaldi.exe`
+	macVivaldi := "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi"
+	opera := `C:\Users\me\AppData\Local\Programs\Opera\opera.exe`
+	operaGX := "/Applications/Opera GX.app/Contents/MacOS/Opera"
 	cases := []struct {
 		name  string
 		goos  string
@@ -68,14 +72,22 @@ func TestFindBrowser(t *testing.T) {
 		{"windows Chrome", "windows", winEnv, []string{brave, chrome}, nil, chrome},
 		{"windows per-user Chrome", "windows", winEnv, []string{userChrome}, nil, userChrome},
 		{"windows Brave", "windows", winEnv, []string{brave}, nil, brave},
+		{"windows Brave before Vivaldi", "windows", winEnv, []string{vivaldi, brave}, nil, brave},
+		{"windows Vivaldi", "windows", winEnv, []string{vivaldi}, nil, vivaldi},
+		{"windows Vivaldi before Opera", "windows", winEnv, []string{opera, vivaldi}, nil, vivaldi},
+		{"windows per-user Opera", "windows", winEnv, []string{opera}, nil, opera},
 		{"windows none", "windows", winEnv, nil, nil, ""},
 		{"windows without env", "windows", nil, []string{edge}, nil, ""},
 		{"mac Chrome", "darwin", map[string]string{"HOME": "/Users/me"}, []string{macUserBrave, macChrome}, nil, macChrome},
 		{"mac user Applications", "darwin", map[string]string{"HOME": "/Users/me"}, []string{macUserBrave}, nil, macUserBrave},
+		{"mac Vivaldi", "darwin", map[string]string{"HOME": "/Users/me"}, []string{macVivaldi}, nil, macVivaldi},
+		{"mac Opera GX", "darwin", map[string]string{"HOME": "/Users/me"}, []string{operaGX}, nil, operaGX},
 		{"mac none", "darwin", nil, nil, nil, ""},
 		{"linux prefers Edge", "linux", nil, nil, map[string]string{"chromium": "/usr/bin/chromium", "microsoft-edge": "/usr/bin/microsoft-edge"}, "/usr/bin/microsoft-edge"},
 		{"linux Chrome stable", "linux", nil, nil, map[string]string{"google-chrome-stable": "/usr/bin/google-chrome-stable", "brave-browser": "/usr/bin/brave-browser"}, "/usr/bin/google-chrome-stable"},
 		{"linux Brave", "linux", nil, nil, map[string]string{"brave-browser": "/usr/bin/brave-browser"}, "/usr/bin/brave-browser"},
+		{"linux Vivaldi", "linux", nil, nil, map[string]string{"vivaldi-stable": "/usr/bin/vivaldi-stable"}, "/usr/bin/vivaldi-stable"},
+		{"linux Yandex", "linux", nil, nil, map[string]string{"yandex-browser": "/usr/bin/yandex-browser"}, "/usr/bin/yandex-browser"},
 		{"linux none", "linux", nil, nil, map[string]string{"firefox": "/usr/bin/firefox"}, ""},
 	}
 	for _, c := range cases {

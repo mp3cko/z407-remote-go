@@ -1,6 +1,7 @@
 // Package appwin opens the remote in a browser window: a Chromium "app"
-// window when Edge, Chrome, Chromium or Brave is installed, otherwise a tab
-// in the system default browser. It only starts processes, so it stays pure Go.
+// window when a Chromium-based browser (Edge, Chrome, Chromium, Brave,
+// Vivaldi, Opera or Yandex) is installed, otherwise a tab in the system
+// default browser. It only starts processes, so it stays pure Go.
 package appwin
 
 import (
@@ -109,6 +110,11 @@ var windowsBrowsers = []string{
 	`Google\Chrome\Application\chrome.exe`,
 	`Chromium\Application\chrome.exe`,
 	`BraveSoftware\Brave-Browser\Application\brave.exe`,
+	`Vivaldi\Application\vivaldi.exe`,
+	`Opera\opera.exe`,          // Program Files
+	`Programs\Opera\opera.exe`, // LocalAppData, the default
+	`Programs\Opera GX\opera.exe`,
+	`Yandex\YandexBrowser\Application\browser.exe`,
 }
 
 // macBrowsers are paths below /Applications and ~/Applications.
@@ -117,6 +123,10 @@ var macBrowsers = []string{
 	"Google Chrome.app/Contents/MacOS/Google Chrome",
 	"Chromium.app/Contents/MacOS/Chromium",
 	"Brave Browser.app/Contents/MacOS/Brave Browser",
+	"Vivaldi.app/Contents/MacOS/Vivaldi",
+	"Opera.app/Contents/MacOS/Opera",
+	"Opera GX.app/Contents/MacOS/Opera",
+	"Yandex.app/Contents/MacOS/Yandex",
 }
 
 // pathBrowsers are executable names looked up in PATH (Linux and the BSDs).
@@ -125,10 +135,13 @@ var pathBrowsers = []string{
 	"google-chrome", "google-chrome-stable",
 	"chromium", "chromium-browser",
 	"brave-browser", "brave",
+	"vivaldi", "vivaldi-stable",
+	"opera",
+	"yandex-browser", "yandex-browser-stable",
 }
 
 // FindBrowser returns the path of the first installed Chromium-based browser,
-// in the order Edge, Chrome, Chromium, Brave.
+// in the order Edge, Chrome, Chromium, Brave, Vivaldi, Opera, Opera GX, Yandex.
 func (s System) FindBrowser() (string, bool) {
 	switch s.GOOS {
 	case "windows":
