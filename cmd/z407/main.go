@@ -29,6 +29,7 @@ import (
 	"github.com/mp3cko/z407-remote-go/internal/appwin"
 	"github.com/mp3cko/z407-remote-go/internal/ble"
 	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-go/internal/macwin"
 	"github.com/mp3cko/z407-remote-go/internal/peers"
 	"github.com/mp3cko/z407-remote-go/internal/server"
 	"github.com/mp3cko/z407-remote-go/internal/speaker"
@@ -85,6 +86,11 @@ type deps struct {
 }
 
 func main() {
+	// On macOS the main thread is kept for the remote's window.
+	macwin.Main(realMain)
+}
+
+func realMain() {
 	term := os.Stdout
 	setupOutput(logMode(os.Args[1:]))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -98,6 +104,18 @@ func main() {
 		alertFailure(err)
 		os.Exit(1)
 	}
+}
+
+// appWindow opens the remote in a browser's app window, or on macOS in a
+// window of the program's own.
+func appWindow() appwin.System {
+	sys := appwin.Real(runtime.GOOS)
+	if macwin.Available() {
+		sys.Native = func(url string) (appwin.Process, error) {
+			return macwin.Open(url, appwin.WindowTitle, appwin.WindowWidth, appwin.WindowHeight, server.Icon())
+		}
+	}
+	return sys
 }
 
 // failExit prints the error banner. On Windows, where a double-clicked
@@ -124,7 +142,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		sp:     speaker.NewManager(ble.NewDialer(), speaker.WithLogger(lg.Logf)),
 		dial:   net.Dial,
 		ifaces: systemIfaces,
-		win:    appwin.Real(runtime.GOOS),
+		win:    appWindow(),
 		log:    lg,
 
 		configDir: os.UserConfigDir,

@@ -156,6 +156,21 @@ func TestOpenApp(t *testing.T) {
 	}
 }
 
+func TestOpenAppPrefersNative(t *testing.T) {
+	s, log := fakeSystem("darwin", map[string]string{"HOME": "/Users/me"}, []string{"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}, nil)
+	var opened string
+	s.Native = func(url string) (Process, error) {
+		opened = url
+		return nil, nil
+	}
+	if _, err := s.OpenApp("http://127.0.0.1:2407", 2407); err != nil {
+		t.Fatal(err)
+	}
+	if opened != "http://127.0.0.1:2407" || len(*log) != 0 {
+		t.Fatalf("native window got %q, browser started %v", opened, *log)
+	}
+}
+
 func TestOpenAppFailures(t *testing.T) {
 	s, log := fakeSystem("linux", map[string]string{"DISPLAY": ":0"}, nil, nil)
 	if _, err := s.OpenApp("http://x", 1); !errors.Is(err, ErrNoBrowser) {

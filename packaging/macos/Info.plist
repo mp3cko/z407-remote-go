@@ -22,11 +22,12 @@
 	<string>@VERSION@</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
-	<!-- The program has no window of its own (the remote opens in a browser
-	     window), so it stays out of the Dock instead of sitting there as an
-	     app that does not respond. -->
-	<key>LSUIElement</key>
-	<true/>
+	<!-- The remote's window loads the page the app serves over plain HTTP. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Z407 Remote controls the Logitech Z407 speakers over Bluetooth.</string>
 </dict>

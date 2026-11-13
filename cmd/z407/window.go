@@ -70,7 +70,7 @@ func (w window) open(ctx context.Context, url string, port int) (closeWindow fun
 				w.openTab(url)
 				return
 			}
-			if werr == nil && w.handedOff(ctx, started) {
+			if _, own := proc.(appwin.Owned); werr == nil && !own && w.handedOff(ctx, started) {
 				w.presence.Arm()
 				w.log.Infof("The window is run by a browser that was already open. The app stops when you close the window (or press Ctrl+C)")
 				return

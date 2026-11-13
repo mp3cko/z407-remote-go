@@ -41,9 +41,15 @@ func (p *fakeProc) Close() error {
 	return nil
 }
 
+// ownedProc is a window of the program's own (the macOS window).
+type ownedProc struct{ *fakeProc }
+
+func (ownedProc) Owned() {}
+
 type fakeOpener struct {
 	mu         sync.Mutex
 	proc       *fakeProc
+	owned      bool // OpenApp returns proc as the program's own window
 	appErr     error
 	defaultErr error
 	apps       []string // URLs given to OpenApp
@@ -58,6 +64,9 @@ func (o *fakeOpener) OpenApp(url string, port int) (appwin.Process, error) {
 	o.ports = append(o.ports, port)
 	if o.appErr != nil {
 		return nil, o.appErr
+	}
+	if o.owned {
+		return ownedProc{o.proc}, nil
 	}
 	return o.proc, nil
 }
@@ -227,6 +236,20 @@ func TestWindowOutlivesItsProcess(t *testing.T) {
 	a.stillRunning(200 * time.Millisecond)
 	closePage()
 	a.waitExit()
+}
+
+// The program's own window cannot be handed on: when it is closed the app
+// stops, even if its page has not gone away yet.
+func TestOwnWindowClosedStops(t *testing.T) {
+	o := &fakeOpener{proc: newFakeProc(), owned: true}
+	a := startApp(t, deps{win: o, earlyExit: time.Second, grace: 30 * time.Millisecond})
+	closePage := a.page()
+	defer closePage()
+	o.proc.exit(nil)
+	a.waitExit()
+	if !strings.Contains(a.out.String(), "Window closed") {
+		t.Errorf("output: %s", a.out.String())
+	}
 }
 
 // The window was closed and the page went with it: nothing is left to wait for.

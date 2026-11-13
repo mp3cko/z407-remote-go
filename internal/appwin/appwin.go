@@ -42,6 +42,11 @@ type Process interface {
 	Close() error
 }
 
+// Owned is implemented by a Process that is a window of the program's own.
+// Unlike a browser, it cannot pass its window on to another process: once
+// Wait returns, the window is gone.
+type Owned interface{ Owned() }
+
 // System is the part of the operating system this package uses. Tests
 // replace the fields; Real returns the live one.
 type System struct {
@@ -55,6 +60,9 @@ type System struct {
 	// Brand, when set, claims the app window for this program on the
 	// taskbar once it shows up (Windows); OpenApp runs it in the background.
 	Brand func()
+	// Native, when set, opens url in a window of the program's own (macOS),
+	// which OpenApp then prefers to a browser.
+	Native func(url string) (Process, error)
 }
 
 // Real returns the System backed by the running machine.
@@ -226,6 +234,9 @@ func (s System) profileDir(browser string, port int) (string, error) {
 func (s System) OpenApp(url string, port int) (Process, error) {
 	if !s.HasDisplay() {
 		return nil, ErrNoDisplay
+	}
+	if s.Native != nil {
+		return s.Native(url)
 	}
 	browser, ok := s.FindBrowser()
 	if !ok {
