@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/protocol"
-	"github.com/mp3cko/z407-remote-go/internal/speaker"
+	"github.com/mp3cko/z407-remote-anywhere/internal/protocol"
+	"github.com/mp3cko/z407-remote-anywhere/internal/speaker"
 )
 
 type fakeChar struct {

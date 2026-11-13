@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/appwin"
-	"github.com/mp3cko/z407-remote-go/internal/logx"
-	"github.com/mp3cko/z407-remote-go/internal/server"
+	"github.com/mp3cko/z407-remote-anywhere/internal/appwin"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/server"
 )
 
 // earlyExit is how soon after its start a failing browser counts as "the

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/protocol"
-	"github.com/mp3cko/z407-remote-go/internal/speaker"
+	"github.com/mp3cko/z407-remote-anywhere/internal/protocol"
+	"github.com/mp3cko/z407-remote-anywhere/internal/speaker"
 )
 
 // ErrNotFound is returned when no speaker advertising the Z407 service is seen.

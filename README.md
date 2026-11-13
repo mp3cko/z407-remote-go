@@ -17,7 +17,7 @@ A small remote for the Logitech Z407 speakers. It runs on a computer with Blueto
 
 ## Install
 
-Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-go/releases), extract it and run `z407` (`z407.exe` on Windows; the archive also holds `z407_console.exe`, see [Windows](#windows)). On macOS the archive holds the app `Z407 Remote.app`, see [macOS](#macos); on Linux `z407 --install` adds the remote to the applications menu, see [Linux](#linux).
+Download the archive for your platform from the [releases page](https://github.com/mp3cko/z407-remote-anywhere/releases), extract it and run `z407` (`z407.exe` on Windows; the archive also holds `z407_console.exe`, see [Windows](#windows)). On macOS the archive holds the app `Z407 Remote.app`, see [macOS](#macos); on Linux `z407 --install` adds the remote to the applications menu, see [Linux](#linux).
 
 Or build it yourself (Go 1.26.1 or newer):
 
@@ -115,7 +115,7 @@ The program itself is inside the app, for use in a terminal: `"Z407 Remote.app/C
 
 The Android app shows the same remote and talks to the speakers itself over Bluetooth LE. No computer is needed. It needs Android 8.0 or newer.
 
-Install: download `z407_vX.Y.Z_android.apk` from the [releases page](https://github.com/mp3cko/z407-remote-go/releases) on the phone and open it (Android asks you to allow installing from that source), or from a computer with the phone attached: `adb install z407_vX.Y.Z_android.apk`.
+Install: download `z407_vX.Y.Z_android.apk` from the [releases page](https://github.com/mp3cko/z407-remote-anywhere/releases) on the phone and open it (Android asks you to allow installing from that source), or from a computer with the phone attached: `adb install z407_vX.Y.Z_android.apk`.
 
 Good to know:
 

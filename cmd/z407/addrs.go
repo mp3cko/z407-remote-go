@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 )
 
 // hostAddr is a LAN address the UI can be reached on.

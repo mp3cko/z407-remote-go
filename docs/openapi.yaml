@@ -16,10 +16,10 @@ info:
     connected to them, the commands under `/api/{command}` answer 404.
   license:
     name: MIT
-    url: https://github.com/mp3cko/z407-remote-go/blob/main/LICENSE
+    url: https://github.com/mp3cko/z407-remote-anywhere/blob/main/LICENSE
 externalDocs:
   description: README
-  url: https://github.com/mp3cko/z407-remote-go#readme
+  url: https://github.com/mp3cko/z407-remote-anywhere#readme
 servers:
   - url: http://127.0.0.1:2407
     description: The app on this machine

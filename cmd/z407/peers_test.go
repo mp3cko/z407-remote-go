@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
-	"github.com/mp3cko/z407-remote-go/internal/peers"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/peers"
 )
 
 func (a *app) request(method, path string) (int, map[string]any) {

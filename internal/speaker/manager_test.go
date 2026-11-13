@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
-	"github.com/mp3cko/z407-remote-go/internal/protocol"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/protocol"
 )
 
 type fakeLink struct {

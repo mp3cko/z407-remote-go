@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 )
 
 // peerServer is another instance of the app, as far as takeover can tell.

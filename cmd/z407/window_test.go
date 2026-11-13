@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/appwin"
-	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/appwin"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 )
 
 // fakeProc is a browser process that runs until exit is called.

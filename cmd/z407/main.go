@@ -26,13 +26,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/appwin"
-	"github.com/mp3cko/z407-remote-go/internal/ble"
-	"github.com/mp3cko/z407-remote-go/internal/logx"
-	"github.com/mp3cko/z407-remote-go/internal/macwin"
-	"github.com/mp3cko/z407-remote-go/internal/peers"
-	"github.com/mp3cko/z407-remote-go/internal/server"
-	"github.com/mp3cko/z407-remote-go/internal/speaker"
+	"github.com/mp3cko/z407-remote-anywhere/internal/appwin"
+	"github.com/mp3cko/z407-remote-anywhere/internal/ble"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/macwin"
+	"github.com/mp3cko/z407-remote-anywhere/internal/peers"
+	"github.com/mp3cko/z407-remote-anywhere/internal/server"
+	"github.com/mp3cko/z407-remote-anywhere/internal/speaker"
 	"golang.org/x/term"
 )
 

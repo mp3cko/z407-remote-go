@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 )
 
 // Values of the --log flag.

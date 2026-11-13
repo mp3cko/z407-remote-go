@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
-	"github.com/mp3cko/z407-remote-go/internal/protocol"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/protocol"
 )
 
 // ErrNotConnected is returned by commands when the speakers are not connected.

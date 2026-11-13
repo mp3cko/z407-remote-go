@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mp3cko/z407-remote-go/internal/logx"
+	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 )
 
 type fakeSpeaker struct {

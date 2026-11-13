@@ -1,4 +1,4 @@
-module github.com/mp3cko/z407-remote-go
+module github.com/mp3cko/z407-remote-anywhere
 
 go 1.26.1
 

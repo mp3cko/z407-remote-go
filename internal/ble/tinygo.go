@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/mp3cko/z407-remote-go/internal/protocol"
+	"github.com/mp3cko/z407-remote-anywhere/internal/protocol"
 	bt "tinygo.org/x/bluetooth"
 )
 

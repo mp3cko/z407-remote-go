@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/mp3cko/z407-remote-go/internal/appwin"
-	"github.com/mp3cko/z407-remote-go/internal/server"
+	"github.com/mp3cko/z407-remote-anywhere/internal/appwin"
+	"github.com/mp3cko/z407-remote-anywhere/internal/server"
 )
 
 // A Linux program file cannot carry an icon the way a Windows .exe or a
