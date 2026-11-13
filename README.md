@@ -69,6 +69,18 @@ The list is saved in `z407/config.json` in your configuration directory (`%AppDa
 | `--peers pc,192.168.1.20` | saved list | other devices for this run only |
 | `--install`, `--uninstall` | | Linux: add or remove the applications-menu entry |
 
+### Without a window
+
+For a terminal, a server in a cupboard or a machine without a screen, run only the server:
+
+```bash
+./z407 --no-window                                               # Linux
+"/Applications/Z407 Remote.app/Contents/MacOS/z407" --no-window  # macOS
+z407_console.exe --no-window                                     # Windows
+```
+
+The log goes to the terminal, and the remote is at the address the app prints (`http://<this computer>:2407`). Ctrl+C stops it. On Linux without a graphical session (over SSH, on a server) the app opens no window anyway.
+
 ## Platform notes
 
 **The window.** On macOS the remote opens in a window of the app itself. On Windows and Linux it is an "app" window of a Chromium-based browser (Edge, Chrome, Chromium, Brave, Vivaldi, Opera or Yandex) with a profile of its own, so your normal browser is not touched. Without one of those it opens as a tab in the default browser, and the app stops a few seconds after the last tab on that computer is closed.
