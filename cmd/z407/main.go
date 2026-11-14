@@ -47,7 +47,7 @@ const (
 	// sleepGrace is how long the computer is held from sleeping once the
 	// speakers were let go: macOS disconnects in the background, and the
 	// speakers must hear of it before the Bluetooth radio dozes off.
-	sleepGrace = time.Second
+	sleepGrace = 2 * time.Second
 )
 
 // backend is a speaker connection manager that can be run in the background.
