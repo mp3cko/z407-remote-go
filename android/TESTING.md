@@ -19,3 +19,4 @@ The Bluetooth side cannot be tested automatically. With a phone and the speakers
 15. While the phone shows "Disconnected", rotate it, press Home and return: it stays disconnected, and its notification says "Disconnected". Press Reconnect: it takes the speakers over.
 16. Close the phone app completely and reopen it: the saved list is still there.
 17. Press the display: the log opens and shows what happened so far (searching, connecting, the takeover); new lines appear by themselves. Close it with the cross or a tap outside.
+18. Press Theme and pick Arctic: the remote, the page and the status and navigation bars turn light, with dark icons in the bars. Pick Graphite: the bars turn dark with light icons. Close the app completely and reopen it: Graphite is still chosen.

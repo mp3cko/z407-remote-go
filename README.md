@@ -11,6 +11,7 @@ A remote control for the **Logitech Z407** Bluetooth speakers that runs on your 
 - Several devices share the speakers: the one you use takes them, the others show "Disconnected" and a Reconnect key
 - Opens in a window of its own; phones and tablets on the network can open the same remote and add it to their home screen
 - A log viewer on the remote itself, and an [HTTP API](#http-api) for scripts and home automation
+- Eight themes, picked per device with the Theme key
 
 ## Install
 
@@ -45,6 +46,10 @@ The Linux build has only been run under WSL, where Bluetooth does not work. The 
 Start the app. The remote opens in its own window, and closing the window stops the app.
 
 The display tells what is going on ("Searching…", "Connected", "Speakers not found", "Asking living-room-pc to release the speakers"); press it to see the log. Below the remote, "Web address" shows where other devices on your network can open it, for example `http://192.168.1.50:2407`. On a phone, choose "Add to Home screen" in the browser menu to get an icon for it. That page works while the app runs.
+
+### Themes
+
+Press **Theme** on the remote to pick one of eight looks: Classic, Graphite, Arctic, Phosphor, Walnut, Synthwave, Sage and High contrast. The choice is kept by the browser or app on that device, so a phone and a computer can each have their own. The lamps keep their meaning in every theme: green connected, amber searching, red not connected.
 
 ### Several devices
 
