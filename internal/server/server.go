@@ -77,6 +77,10 @@ func WithPresence(p *Presence) Option { return func(s *srv) { s.presence = p } }
 // list that lives in memory only).
 func WithPeers(p *peers.Store) Option { return func(s *srv) { s.peers = p } }
 
+// WithAgain sets what POST /api/takeover does: ask the other devices for the
+// speakers once more (default: nothing).
+func WithAgain(f func()) Option { return func(s *srv) { s.again = f } }
+
 // WithAddrs sets the function listing the addresses the remote can be
 // opened at from other devices ("http://192.168.1.20:2407"), best guess
 // first. The page shows them (default: none).
@@ -97,6 +101,7 @@ type srv struct {
 	addrs    func() []string
 	notice   *Notice
 	history  *logx.History
+	again    func()
 }
 
 // New returns the HTTP handler serving the UI and the JSON API.
@@ -134,6 +139,7 @@ func New(sp Speaker, opts ...Option) http.Handler {
 	mux.HandleFunc("POST /api/peers", s.savePeers)
 	mux.HandleFunc("POST /api/disconnect", s.disconnect)
 	mux.HandleFunc("POST /api/reconnect", s.reconnect)
+	mux.HandleFunc("POST /api/takeover", s.takeover)
 	mux.HandleFunc("POST /api/{command}", s.command)
 	return s.accessLog(mux)
 }
@@ -273,6 +279,16 @@ func (s *srv) disconnect(w http.ResponseWriter, _ *http.Request) {
 // reconnect ends what disconnect began.
 func (s *srv) reconnect(w http.ResponseWriter, _ *http.Request) {
 	s.sp.Reconnect()
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// takeover asks the other devices for the speakers once more, also those
+// that were asked before: the page offers it while the speakers cannot be
+// found. The answer comes before theirs.
+func (s *srv) takeover(w http.ResponseWriter, _ *http.Request) {
+	if s.again != nil {
+		s.again()
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 

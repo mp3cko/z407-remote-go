@@ -187,10 +187,12 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
 #conn.busy #connText { color: var(--amber); }
 #volBar { flex: 1; display: flex; gap: 3px; height: 18px; }
 /* Another device took the speakers: the volume bar makes way for the key
-   that takes them back. It lies above the key that opens the log. */
-#conn.released #volBar, #reconnect[hidden] { display: none; }
+   that takes them back. The speakers cannot be found: for the key that asks
+   the other devices for them again, or adds one. Both lie above the key that
+   opens the log. */
+#conn.released #volBar, #conn.stuck #volBar, .beckon[hidden] { display: none; }
 #conn.released #connText { color: var(--amber); }
-#reconnect {
+.beckon {
   --ink: var(--amber); flex: 1; position: relative; z-index: 1;
   min-height: 34px; padding: 0 12px; border-radius: 8px;
   font-family: inherit; font-size: .7rem; letter-spacing: .16em; text-shadow: 0 0 8px currentColor;
@@ -200,9 +202,9 @@ main { width: 100%; max-width: 460px; margin: 0 auto; display: grid; gap: 18px; 
   transform: none; filter: none; transition: background .15s, box-shadow .15s;
   animation: beckon 2.4s ease-in-out infinite;
 }
-#reconnect svg { width: 15px; height: 15px; filter: drop-shadow(0 0 4px currentColor); }
-#reconnect:hover, #reconnect:focus-visible { background: color-mix(in srgb, var(--amber) 20%, transparent); }
-#reconnect:active { background: color-mix(in srgb, var(--amber) 32%, transparent); }
+.beckon svg { width: 15px; height: 15px; filter: drop-shadow(0 0 4px currentColor); }
+.beckon:hover, .beckon:focus-visible { background: color-mix(in srgb, var(--amber) 20%, transparent); }
+.beckon:active { background: color-mix(in srgb, var(--amber) 32%, transparent); }
 @keyframes beckon {
   50% { box-shadow: 0 0 24px color-mix(in srgb, var(--amber) 34%, transparent), inset 0 0 14px color-mix(in srgb, var(--amber) 14%, transparent); }
 }
@@ -518,8 +520,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       </div>
       <div class="barrow">
         <div id="volBar" role="img" aria-label="Estimated volume"></div>
-        <button id="reconnect" type="button" data-cmd="reconnect" hidden>
+        <button id="reconnect" class="beckon" type="button" data-cmd="reconnect" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/></svg>Reconnect
+        </button>
+        <button id="askAgain" class="beckon" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/></svg><span>Ask devices</span>
         </button>
         <span class="tag" aria-hidden="true">Log</span>
       </div>
@@ -734,6 +739,8 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       const released = data.phase === 'released';
       conn.classList.toggle('released', released);
       $('reconnect').hidden = !released;
+      showStuck(notSeenFor(!data.connected && !released &&
+        (data.phase === 'searching' || data.problem === 'Speakers not found')) >= STUCK_AFTER);
       if (released) setStanding('Another device took the speakers', false);
       else if (data.note) setStanding(data.note, false);
       else setStanding(data.connected ? '' : data.problem || '', true);
@@ -742,6 +749,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       api(false);
       conn.classList.remove('released');
       $('reconnect').hidden = true;
+      showStuck(false);
       showConn('', stopped ? 'App closed' : 'App unreachable');
       setStanding(stopped ? 'The app was closed. Start it again to use the remote.' : '', false);
       return;
@@ -884,6 +892,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       devList.append(li);
     }
     devInput.disabled = $('devForm').querySelector('button').disabled = peersFixed;
+    showAsk();
   }
 
   async function loadPeers() {
@@ -915,6 +924,51 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
       return false;
     }
   }
+
+  // The speakers cannot be found: a key asks the other devices for them once
+  // more, or, with none on the list, opens it to add one.
+  let stuck = false, lookingSince = 0;
+  // Free speakers show up within a second or two, and by then the other
+  // devices have been asked once; the speakers' own "not found" takes three
+  // whole searches, the better part of a minute.
+  const STUCK_AFTER = 6000;
+
+  // How long the speakers have been looked for without being seen (ms).
+  function notSeenFor(looking) {
+    if (!looking) lookingSince = 0;
+    else if (!lookingSince) lookingSince = Date.now();
+    return looking ? Date.now() - lookingSince : 0;
+  }
+
+  function showStuck(on) {
+    if (on && !stuck) loadPeers(); // the list may have changed elsewhere
+    stuck = on;
+    conn.classList.toggle('stuck', on);
+    $('askAgain').hidden = !on;
+    showAsk();
+  }
+
+  function showAsk() {
+    $('askAgain').querySelector('span').textContent = peers.length ? 'Ask devices' : 'Add device';
+  }
+
+  $('askAgain').addEventListener('click', async () => {
+    if (!peers.length) {
+      $('devOpen').click();
+      return;
+    }
+    flash();
+    try {
+      const data = await (await fetch('/api/takeover', { method: 'POST' })).json();
+      if (data.success) {
+        say('Asking again');
+        setTimeout(refresh, 400);
+      } else say(data.error || 'Request failed', true);
+    } catch {
+      api(false);
+      say('Cannot reach the app', true);
+    }
+  });
 
   $('devForm').addEventListener('submit', async (e) => {
     e.preventDefault();

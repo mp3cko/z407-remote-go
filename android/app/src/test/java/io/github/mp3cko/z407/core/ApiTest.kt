@@ -182,6 +182,15 @@ class ApiTest {
     }
 
     @Test
+    fun askAgain() {
+        var asked = 0
+        val api = Api(running().manager, store, again = { asked++ })
+        check(api.handle("POST", "/api/takeover", null), 200, "{\"success\":true}\n")
+        assertEquals(1, asked)
+        assertEquals(405, api.handle("GET", "/api/takeover", null).status)
+    }
+
+    @Test
     fun disconnectRefusedWhileLooking() {
         var released = false
         val logged = mutableListOf<String>()

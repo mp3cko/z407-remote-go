@@ -29,6 +29,8 @@ class Api(
     private val reconnect: () -> Unit = {},
     /** Whether the speakers were let go of and not taken back yet. */
     private val released: () -> Boolean = { false },
+    /** The user asks the other devices for the speakers once more (POST /api/takeover). */
+    private val again: () -> Unit = {},
     private val log: (String) -> Unit = {},
 ) {
     companion object {
@@ -74,6 +76,11 @@ class Api(
             "disconnect" -> if (method == "POST") disconnectRequest() else methodNotAllowed()
             "reconnect" -> if (method == "POST") {
                 reconnect()
+                json(200, "success" to true)
+            } else methodNotAllowed()
+            // Offered while the speakers cannot be found; the answer comes before the devices'.
+            "takeover" -> if (method == "POST") {
+                again()
                 json(200, "success" to true)
             } else methodNotAllowed()
             else -> if (method == "POST") command(name) else methodNotAllowed()

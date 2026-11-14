@@ -59,6 +59,9 @@ type Takeover struct {
 	// It is called for several peers at the same time.
 	Post func(ctx context.Context, peer string) (answer string, err error)
 	Log  func(level logx.Level, format string, args ...any)
+	// Again starts a new session when it delivers: the user asks every peer
+	// once more, also those asked before. nil = never.
+	Again <-chan struct{}
 	// Timeout, FoundTimeout and PeerTimeout default to SearchTimeout,
 	// ConnectTimeout and PeerTimeout.
 	Timeout      time.Duration
@@ -68,6 +71,7 @@ type Takeover struct {
 	searching bool
 	since     time.Time       // start of the current search
 	asked     map[string]bool // peers dealt with in this session; nil = none yet
+	again     bool            // Again delivered to Run
 }
 
 func (t *Takeover) logf(level logx.Level, format string, args ...any) {
@@ -80,6 +84,13 @@ func (t *Takeover) logf(level logx.Level, format string, args ...any) {
 // at once in a new session, otherwise when the search has lasted the whole
 // timeout. Run calls it regularly; it must not be called concurrently.
 func (t *Takeover) Check(ctx context.Context, now time.Time) {
+	again := t.again
+	t.again = false
+	select {
+	case <-t.Again:
+		again = true
+	default:
+	}
 	if t.Released != nil && t.Released() {
 		t.searching, t.asked = false, nil
 		return
@@ -88,8 +99,11 @@ func (t *Takeover) Check(ctx context.Context, now time.Time) {
 		t.searching = false
 		return
 	}
-	if !t.searching {
+	if !t.searching || again {
 		t.searching, t.since = true, now
+	}
+	if again {
+		t.asked = nil
 	}
 	if t.asked != nil && now.Sub(t.since) < t.timeout() {
 		return
@@ -254,7 +268,8 @@ func (t *Takeover) note(format string, args ...any) {
 	}
 }
 
-// Run calls Check every interval (CheckInterval if 0) until ctx is cancelled.
+// Run calls Check every interval (CheckInterval if 0), and at once when
+// Again delivers, until ctx is cancelled.
 func (t *Takeover) Run(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = CheckInterval
@@ -267,6 +282,8 @@ func (t *Takeover) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+		case <-t.Again:
+			t.again = true
 		}
 	}
 }

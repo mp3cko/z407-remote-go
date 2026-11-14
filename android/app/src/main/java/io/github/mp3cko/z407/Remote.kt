@@ -56,6 +56,7 @@ class Remote private constructor(context: Context) {
         disconnect = { Thread(::release, "z407-release").start() },
         reconnect = ::reconnect,
         released = { released },
+        again = ::opened,
         log = ::log,
     )
     private val server = HttpServer(api, ::webFile, ::log)
@@ -107,8 +108,9 @@ class Remote private constructor(context: Context) {
     }
 
     /**
-     * The app came to the screen. If it is still looking for the speakers,
-     * the other devices are asked for them once more.
+     * The app came to the screen, or the user asked for it on the page. If
+     * it is still looking for the speakers, the other devices are asked for
+     * them once more.
      */
     fun opened() {
         opened = true

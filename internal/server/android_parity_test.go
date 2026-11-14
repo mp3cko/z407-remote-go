@@ -56,6 +56,7 @@ func TestBodiesSharedWithAndroid(t *testing.T) {
 		{"disconnect, not holding", func() *fakeSpeaker { return &fakeSpeaker{phase: "searching"} }, "POST", "/api/disconnect", 409,
 			`{"error":"This device does not hold the speakers: it is looking for them itself","success":false}`},
 		{"reconnect", connected, "POST", "/api/reconnect", 200, `{"success":true}`},
+		{"ask again", func() *fakeSpeaker { return &fakeSpeaker{phase: "searching"} }, "POST", "/api/takeover", 200, `{"success":true}`},
 		{"status released", func() *fakeSpeaker { return &fakeSpeaker{volume: 50, phase: "released"} },
 			"GET", "/api/status", 200, `{"connected":false,"note":"","phase":"released","problem":"","volume":50}`},
 	} {

@@ -471,3 +471,44 @@ func TestNotesSumUpARound(t *testing.T) {
 		t.Errorf("notes with nobody to ask: %q", notes)
 	}
 }
+
+// Told to ask again, the user having pressed the key, an instance at once
+// asks every peer once more, also those asked before; once is enough.
+func TestAgainAsksEveryPeerOnceMore(t *testing.T) {
+	a, b := newPeer(t), newPeer(t)
+	r := newRig(a.addr(), b.addr())
+	again := make(chan struct{}, 1)
+	r.Again = again
+	r.advance(0)
+	r.advance(10 * SearchTimeout)
+	if len(a.got()) != 1 || len(b.got()) != 1 {
+		t.Fatalf("first round: %v %v", a.got(), b.got())
+	}
+	again <- struct{}{}
+	r.advance(0)
+	if len(a.got()) != 2 || len(b.got()) != 2 {
+		t.Fatalf("not asked again: %v %v", a.got(), b.got())
+	}
+	r.advance(10 * SearchTimeout)
+	if len(a.got()) != 2 || len(b.got()) != 2 {
+		t.Fatalf("asked more than once more: %v %v", a.got(), b.got())
+	}
+}
+
+// Connected, an instance has nobody to ask, and a press does not linger
+// until the speakers are lost.
+func TestAgainWhileConnectedAsksNobody(t *testing.T) {
+	p := newPeer(t)
+	r := newRig(p.addr())
+	again := make(chan struct{}, 1)
+	r.Again = again
+	r.advance(0)
+	r.connected = true
+	again <- struct{}{}
+	r.advance(time.Second)
+	r.connected = false
+	r.advance(time.Second)
+	if len(p.got()) != 1 {
+		t.Fatalf("asked: %v", p.got())
+	}
+}

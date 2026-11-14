@@ -121,6 +121,37 @@ func TestTakeoverWaitsWhileReleasedAndAsksAgainAfterReconnect(t *testing.T) {
 	waitHits(2)
 }
 
+// The page's "Ask devices" key: a copy that is still looking asks the peers
+// once more, although it asked them already.
+func TestAskAgainFromThePage(t *testing.T) {
+	var hits atomic.Int32
+	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusConflict) // looking for the speakers itself
+	}))
+	defer peer.Close()
+	waitHits := func(n int32) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for hits.Load() < n {
+			if time.Now().After(deadline) {
+				t.Fatalf("peer asked %d times, want %d", hits.Load(), n)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	a := startApp(t, deps{
+		sp:            &searchingBackend{fakeBackend: newFakeBackend()},
+		takeover:      peers.Takeover{Timeout: time.Hour},
+		takeoverEvery: time.Hour, // only the key wakes it
+	}, "--peers", strings.TrimPrefix(peer.URL, "http://"))
+	waitHits(1)
+	if code, _ := a.request("POST", "/api/takeover"); code != 200 {
+		t.Fatalf("takeover: %d", code)
+	}
+	waitHits(2)
+}
+
 // Two copies that are both still looking for the speakers ask each other
 // for them; neither holds them, so neither lets go, and both look on.
 func TestCopiesStartedTogetherBothLookOn(t *testing.T) {

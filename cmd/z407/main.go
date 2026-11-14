@@ -211,7 +211,16 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 		lg.Infof("The remote's page was closed, stopping")
 		cancelBg()
 	})
+	// The page's "Ask devices" key; a press while one waits adds nothing.
+	again := make(chan struct{}, 1)
+	askAgain := func() {
+		select {
+		case again <- struct{}{}:
+		default:
+		}
+	}
 	handler := server.New(d.sp, server.WithLogger(lg), server.WithPresence(presence), server.WithPeers(store),
+		server.WithAgain(askAgain),
 		server.WithAddrs(func() []string { return webURLs(d.addrs(), actualPort, *ip) }),
 		server.WithNotice(notice), server.WithHistory(history))
 	srv := &http.Server{
@@ -231,6 +240,7 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	tk.Found = d.sp.Found
 	tk.Released = func() bool { phase, _ := d.sp.Progress(); return phase == speaker.PhaseReleased }
 	tk.Note = notice.Set
+	tk.Again = again
 	if tk.IsSelf == nil {
 		tk.IsSelf = peers.SelfCheck(actualPort, d.ips, d.resolve)
 	}

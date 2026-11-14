@@ -145,6 +145,23 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Success" }
 
+  /api/takeover:
+    post:
+      tags: [Sharing]
+      operationId: takeover
+      summary: Ask the other devices again
+      description: |
+        The app asks every device on its list once more to let go of the
+        speakers (`/api/disconnect`), also those it asked before. The page
+        offers this while the speakers cannot be found. The answer comes at
+        once; the outcome shows as the `note` of `/api/status`.
+      responses:
+        "200":
+          description: The devices are being asked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Success" }
+
   /api/peers:
     get:
       tags: [Sharing]
