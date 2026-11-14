@@ -51,6 +51,8 @@ The display tells what is going on ("Searching…", "Connected", "Speakers not f
 
 Press **Theme** on the remote to pick one of eight looks: Classic, Graphite, Arctic, Phosphor, Walnut, Synthwave, Sage and High contrast. The choice is kept by the browser or app on that device, so a phone and a computer can each have their own. The lamps keep their meaning in every theme: green connected, amber searching, red not connected.
 
+<p align="center"><img src="docs/themes.png" alt="The remote in four themes side by side: Graphite, Arctic, Phosphor and Synthwave" width="800"></p>
+
 ### Several devices
 
 To let the device you are using take the speakers from another one, each needs to know where the others are:
