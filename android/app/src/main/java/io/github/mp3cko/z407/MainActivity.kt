@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +19,7 @@ import android.provider.Settings
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.webkit.JavascriptInterface
 import android.webkit.ServiceWorkerClient
 import android.webkit.ServiceWorkerController
 import android.webkit.WebResourceRequest
@@ -61,6 +63,7 @@ class MainActivity : Activity() {
 
         val web = WebView(this)
         web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true // the theme picked on the remote
         web.setBackgroundColor(getColor(R.color.page))
         web.overScrollMode = View.OVER_SCROLL_NEVER
         web.webViewClient = object : WebViewClient() {
@@ -88,7 +91,8 @@ class MainActivity : Activity() {
         root.addView(web, FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
         keepClearOfSystemBars(root)
         setContentView(root)
-        matchSystemBarIcons()
+        matchSystemBarIcons(!night())
+        web.addJavascriptInterface(Bars(root, web), "Z407Bars")
 
         web.loadUrl("https://$HOST/")
         remote.onQuit = { runOnUiThread { finishAndRemoveTask() } }
@@ -133,18 +137,46 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Dark icons on the light page, light icons on the dark one. */
-    private fun matchSystemBarIcons() {
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    private fun night() =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    /** Dark icons on a light page, light icons on a dark one. */
+    private fun matchSystemBarIcons(lightPage: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
                 WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            window.insetsController?.setSystemBarsAppearance(if (night) 0 else light, light)
-        } else if (!night) {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
+            window.insetsController?.setSystemBarsAppearance(if (lightPage) light else 0, light)
+        } else {
+            val light = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
                 (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility =
+                if (lightPage) window.decorView.systemUiVisibility or light
+                else window.decorView.systemUiVisibility and light.inv()
+        }
+    }
+
+    /**
+     * Called by the page with its background colour whenever the theme
+     * changes: the system bars and what shows around the page take it on.
+     */
+    private inner class Bars(private val root: View, private val web: WebView) {
+        @JavascriptInterface
+        fun color(css: String) {
+            val c = try {
+                Color.parseColor(css.trim())
+            } catch (_: IllegalArgumentException) {
+                return
+            }
+            runOnUiThread {
+                root.setBackgroundColor(c)
+                web.setBackgroundColor(c)
+                @Suppress("DEPRECATION") // ignored from Android 15, where the root shows behind the bars
+                window.statusBarColor = c
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = c
+                matchSystemBarIcons(Color.luminance(c) > .5f)
+            }
         }
     }
 
