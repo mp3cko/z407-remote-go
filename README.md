@@ -126,6 +126,7 @@ The remote and its API have no authentication. Anyone on your network can contro
 ## Troubleshooting
 
 - **The speakers are not found:** the Logitech Z407 takes one Bluetooth LE controller at a time. Disconnect any phone or other device that is connected to them, and see [Several devices](#several-devices).
+- **The physical remote holds the speakers:** the Z407's own wireless remote (the control puck) is one of those controllers too. While it is connected, no app can reach the speakers. It lets go by itself after about 10 minutes without use; to free them at once, take the batteries out of it.
 - **macOS: nothing happens on start:** see [the first start](#macos-the-first-start). If the port is taken, a dialog says so; start the app with `--port`.
 - **A phone cannot open the page:** check the computer's firewall; with a VPN, allow LAN access.
 - **The window does not open:** check the log; `http://127.0.0.1:2407` works in any browser.
