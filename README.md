@@ -10,7 +10,7 @@ A remote control for the **Logitech Z407** Bluetooth speakers that runs on your 
 - Windows, macOS and Linux (one self-contained program each) and Android
 - Several devices share the speakers: the one you use takes them, the others show "Disconnected" and a Reconnect key
 - Opens in a window of its own; phones and tablets on the network can open the same remote and add it to their home screen
-- A log viewer on the remote itself, and an [HTTP API](docs/openapi.yaml) for scripts and home automation
+- A log viewer on the remote itself, and an [HTTP API](#http-api) for scripts and home automation
 
 ## Install
 
@@ -104,6 +104,20 @@ There is no iOS app, and none can be built from this repository: getting an app 
 2. Press **Share**, then **Add to Home Screen**.
 
 The icon opens the remote like an app. The iPhone does not talk to the speakers itself: the device it points to does, and has to be running.
+
+## HTTP API
+
+Every copy of the app, Android included, answers the same HTTP API the remote's page uses, on the same port (2407 by default). Scripts, home automation and shortcuts can use it to control the speakers:
+
+```bash
+curl -X POST http://192.168.1.50:2407/api/vol_up      # volume up
+curl -X POST http://192.168.1.50:2407/api/play_pause  # play or pause
+curl http://192.168.1.50:2407/api/status              # {"connected":true,"note":"","phase":"connected","problem":"","volume":55}
+```
+
+The commands are `vol_up`, `vol_down`, `bass_up`, `bass_down`, `play_pause`, `next_speaker`, `prev_speaker`, `input_bluetooth`, `input_aux`, `input_usb`, `bluetooth_pair` and `factory_reset`. While the app is not connected to the speakers they answer 404. Other endpoints read the log, edit the Devices list and hand the speakers between devices.
+
+The full description, with every endpoint, answer and error, is the OpenAPI spec [docs/openapi.yaml](docs/openapi.yaml); open it in an OpenAPI viewer such as [Swagger Editor](https://editor.swagger.io) to try the calls.
 
 ## Security
 
