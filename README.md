@@ -63,6 +63,8 @@ To let the device you are using take the speakers from another one, each needs t
 
 From then on a device that starts, or whose Reconnect key is pressed, asks all the others at once to let go of the speakers while it looks for them itself; a device added to the list later is asked once the speakers have not shown up for 3 seconds. The one that lets go shows "Disconnected" and a **Reconnect** key, which takes the speakers back. Devices only take the speakers from each other when one is started or Reconnect is pressed, so two of them never fight over the speakers. A device that is still looking for the speakers itself does not let go when asked, so two devices started at the same moment do not both end up disconnected. Devices that are off are skipped.
 
+A Mac that goes to sleep lets go of the speakers first, so the other devices can take them, and looks for them again when it wakes.
+
 The list is saved in `z407/config.json` in your configuration directory (`%AppData%`, `~/Library/Application Support`, `~/.config`).
 
 ### Command-line options

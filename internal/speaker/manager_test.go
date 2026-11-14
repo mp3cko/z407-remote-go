@@ -576,6 +576,76 @@ func TestReleaseAbandonsTheAttemptUnderWay(t *testing.T) {
 	}
 }
 
+// Sleep lets go of the speakers and tries nothing until Wake, which looks
+// for them again.
+func TestSleepAndWake(t *testing.T) {
+	d := &fakeDialer{}
+	m, _, _ := start(t, d)
+	waitConnected(t, m)
+
+	m.Sleep()
+	if c, _ := m.Status(); c {
+		t.Fatal("still connected after Sleep")
+	}
+	if n := d.link(0).closeCount(); n != 1 {
+		t.Fatalf("link closed %d times", n)
+	}
+	time.Sleep(30 * time.Millisecond) // many retry intervals
+	if n := d.dialCount(); n != 1 {
+		t.Fatalf("dialed %d times while asleep", n)
+	}
+	m.Sleep() // told twice: nothing more happens
+
+	m.Wake()
+	waitConnected(t, m)
+	if n := d.dialCount(); n != 2 {
+		t.Fatalf("dials = %d", n)
+	}
+}
+
+// Speakers released to another device stay released through a sleep.
+func TestWakeKeepsRelease(t *testing.T) {
+	d := &fakeDialer{}
+	m, _, _ := start(t, d)
+	waitConnected(t, m)
+	m.Release()
+	m.Sleep()
+	m.Wake()
+	time.Sleep(30 * time.Millisecond)
+	if phase, _ := m.Progress(); phase != PhaseReleased {
+		t.Fatalf("phase after waking = %q", phase)
+	}
+	if n := d.dialCount(); n != 1 {
+		t.Fatalf("dialed %d times after waking", n)
+	}
+	m.Reconnect()
+	waitConnected(t, m)
+}
+
+// A search under way is abandoned by Sleep, without counting as a failure.
+func TestSleepAbandonsTheAttemptUnderWay(t *testing.T) {
+	dialing := make(chan struct{}, 1)
+	d := &ctxDialer{dialing: dialing}
+	m, _, _ := start(t, d)
+	<-dialing
+	m.Sleep()
+	eventually(t, "the dial to be abandoned", func() bool { return d.cancelled.Load() == 1 })
+	if _, problem := m.Progress(); problem != "" {
+		t.Fatalf("problem = %q", problem)
+	}
+	select {
+	case <-dialing:
+		t.Fatal("dialed again while asleep")
+	case <-time.After(20 * time.Millisecond):
+	}
+	m.Wake()
+	select {
+	case <-dialing:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no new attempt after Wake")
+	}
+}
+
 // ctxDialer searches until its context ends.
 type ctxDialer struct {
 	dialing   chan struct{}

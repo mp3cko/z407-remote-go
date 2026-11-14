@@ -158,6 +158,47 @@ func TestRunStartStop(t *testing.T) {
 	}
 }
 
+// sleepyBackend lets go of the speakers while the computer sleeps.
+type sleepyBackend struct {
+	*fakeBackend
+	asleep atomic.Bool
+}
+
+func (b *sleepyBackend) Sleep() { b.asleep.Store(true) }
+func (b *sleepyBackend) Wake()  { b.asleep.Store(false) }
+
+// The computer going to sleep and waking up reaches the backend.
+func TestRunSleepAndWake(t *testing.T) {
+	fb := &sleepyBackend{fakeBackend: newFakeBackend()}
+	type hooks struct{ sleep, wake func() }
+	got := make(chan hooks, 1)
+	addrCh := make(chan net.Addr, 1)
+	d := deps{sp: fb,
+		dial:       dialerWith(&net.UDPAddr{IP: net.ParseIP("10.1.2.3")}, nil),
+		ready:      func(a net.Addr) { addrCh <- a },
+		power:      func(sleep, wake func()) error { got <- hooks{sleep, wake}; return nil },
+		sleepGrace: time.Millisecond,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	go func() { errCh <- runWith(ctx, []string{"-ip", "127.0.0.1", "--port", "0"}, &safeBuf{}, d) }()
+	<-addrCh
+	h := <-got
+	h.sleep()
+	if !fb.asleep.Load() {
+		t.Fatal("backend not asleep")
+	}
+	h.wake()
+	if fb.asleep.Load() {
+		t.Fatal("backend still asleep")
+	}
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("run: %v", err)
+	}
+}
+
 func TestRunBadFlagsAndHelp(t *testing.T) {
 	d := deps{sp: newFakeBackend(), dial: dialerWith(nil, errors.New("x"))}
 	if err := runWith(context.Background(), []string{"--port", "abc"}, io.Discard, d); err == nil {

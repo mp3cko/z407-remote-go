@@ -31,6 +31,7 @@ import (
 	"github.com/mp3cko/z407-remote-anywhere/internal/logx"
 	"github.com/mp3cko/z407-remote-anywhere/internal/macwin"
 	"github.com/mp3cko/z407-remote-anywhere/internal/peers"
+	"github.com/mp3cko/z407-remote-anywhere/internal/power"
 	"github.com/mp3cko/z407-remote-anywhere/internal/server"
 	"github.com/mp3cko/z407-remote-anywhere/internal/speaker"
 	"golang.org/x/term"
@@ -43,6 +44,10 @@ const (
 	// which takes a moment: one started again at once waits for it.
 	portWait    = 5 * time.Second
 	defaultPort = peers.DefaultPort
+	// sleepGrace is how long the computer is held from sleeping once the
+	// speakers were let go: macOS disconnects in the background, and the
+	// speakers must hear of it before the Bluetooth radio dozes off.
+	sleepGrace = time.Second
 )
 
 // backend is a speaker connection manager that can be run in the background.
@@ -51,6 +56,12 @@ type backend interface {
 	Run(ctx context.Context)
 	// Found reports whether the connection attempt under way has seen the speakers.
 	Found() bool
+}
+
+// sleeper is a backend that lets go of the speakers while the computer sleeps.
+type sleeper interface {
+	Sleep()
+	Wake()
 }
 
 // logLines is how many log lines the log viewer of the remote can show.
@@ -83,6 +94,10 @@ type deps struct {
 	takeoverEvery time.Duration                  // 0 = peers.CheckInterval
 	localIPs      func() []net.IP                // nil = none
 	lookup        func(string) ([]net.IP, error) // nil = names never resolve
+	// power reports the computer going to sleep and waking up; nil = never.
+	power func(sleep, wake func()) error
+	// sleepGrace overrides sleepGrace.
+	sleepGrace time.Duration
 }
 
 func main() {
@@ -148,6 +163,10 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		configDir: os.UserConfigDir,
 		localIPs:  systemIPs,
 		lookup:    lookupHost,
+		power: func(sleep, wake func()) error {
+			power.NoNap()
+			return power.Watch(sleep, wake)
+		},
 	})
 }
 
@@ -233,6 +252,21 @@ func runWith(ctx context.Context, args []string, stdout io.Writer, d deps) error
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); d.sp.Run(ctx) }()
+	// Asleep, this computer would hold the speakers without using them or
+	// answering the other devices that ask for them.
+	if s, ok := d.sp.(sleeper); ok && d.power != nil {
+		grace := d.sleepGrace
+		if grace <= 0 {
+			grace = sleepGrace
+		}
+		err := d.power(func() {
+			s.Sleep()
+			time.Sleep(grace)
+		}, s.Wake)
+		if err != nil {
+			lg.Errorf("The speakers will stay connected while the computer sleeps: %v", err)
+		}
+	}
 
 	tk := d.takeover
 	tk.Peers = func() []string { list, _ := store.List(); return list }

@@ -126,6 +126,7 @@ type Manager struct {
 
 	mu        sync.Mutex
 	released  bool               // between Release and Reconnect
+	asleep    bool               // between Sleep and Wake
 	cancel    context.CancelFunc // ends the attempt under way
 	link      Link
 	connected bool
@@ -188,11 +189,12 @@ func (m *Manager) logf(level logx.Level, format string, args ...any) {
 }
 
 // Run keeps the speakers connected until ctx is cancelled, then closes the
-// link. Between Release and Reconnect it leaves the speakers alone.
+// link. Between Release and Reconnect, and between Sleep and Wake, it leaves
+// the speakers alone.
 func (m *Manager) Run(ctx context.Context) {
 	defer m.shutdown()
 	for ctx.Err() == nil {
-		if m.isReleased() {
+		if m.idle() {
 			select {
 			case <-ctx.Done():
 			case <-m.turn:
@@ -233,6 +235,14 @@ func (m *Manager) Release() {
 		return
 	}
 	m.released = true
+	m.drop()
+	m.logf(logx.Info, "Another device asked for the speakers: disconnected until you reconnect")
+	m.turned()
+}
+
+// drop ends the connection and any attempt under way. It is called with
+// m.mu held and returns with it released.
+func (m *Manager) drop() {
 	l, cancel := m.link, m.cancel
 	m.link, m.connected, m.phase, m.problem, m.found = nil, false, "", "", false
 	m.attempt++
@@ -243,8 +253,40 @@ func (m *Manager) Release() {
 	if l != nil {
 		_ = l.Close()
 	}
-	m.logf(logx.Info, "Another device asked for the speakers: disconnected until you reconnect")
+}
+
+// Sleep lets go of the speakers before the computer sleeps. Asleep, it
+// could neither use them nor answer another device asking for them, while
+// the Bluetooth connection may well last. Nothing is attempted until Wake.
+func (m *Manager) Sleep() {
+	m.mu.Lock()
+	if m.asleep {
+		m.mu.Unlock()
+		return
+	}
+	m.asleep = true
+	held := m.connected
+	m.drop()
+	if held {
+		m.logf(logx.Info, "The computer is going to sleep: disconnected from the speakers")
+	}
 	m.turned()
+}
+
+// Wake ends a Sleep: Run looks for the speakers again, as after a lost
+// connection, unless they were released to another device.
+func (m *Manager) Wake() {
+	m.mu.Lock()
+	was := m.asleep
+	m.asleep = false
+	released := m.released
+	m.mu.Unlock()
+	if was {
+		if !released {
+			m.logf(logx.Info, "The computer woke up: looking for the speakers")
+		}
+		m.turned()
+	}
 }
 
 // Reconnect ends a Release: Run connects again.
@@ -263,6 +305,13 @@ func (m *Manager) isReleased() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.released
+}
+
+// idle reports whether the speakers are to be left alone for now.
+func (m *Manager) idle() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.released || m.asleep
 }
 
 func (m *Manager) turned() {
@@ -295,7 +344,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	m.mu.Lock()
-	if m.released {
+	if m.released || m.asleep {
 		m.mu.Unlock()
 		return false
 	}
@@ -320,7 +369,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 		OnDisconnect: func() { m.onDisconnect(id) },
 	})
 	if err != nil {
-		if m.isReleased() {
+		if m.idle() {
 			return false // abandoned, not failed
 		}
 		m.attemptFailed(dialProblem(err), "Dial failed: %v", err)
@@ -334,7 +383,7 @@ func (m *Manager) connectOnce(ctx context.Context) bool {
 
 	m.mu.Lock()
 	if m.attempt != id || m.dropped {
-		if !m.released {
+		if !m.released && !m.asleep {
 			m.phase, m.problem = "", problemLost
 		}
 		m.mu.Unlock()
