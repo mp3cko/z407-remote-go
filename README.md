@@ -150,6 +150,7 @@ Go 1.26.1 or newer:
 make build          # dist/z407 for this computer
 make macos-app      # on a Mac: dist/Z407 Remote.app
 make cross          # Linux and Windows from any OS, plus macOS on a Mac
+make android        # dist/z407_android.apk and …_debug.apk (JDK and Android SDK, see below)
 make test
 ```
 
