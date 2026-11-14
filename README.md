@@ -2,7 +2,7 @@
 
 A remote control for the **Logitech Z407** Bluetooth speakers that runs on your computers and phones at once. Each device talks to the speakers over Bluetooth LE; the speakers accept only one at a time, so the device you pick up takes them over and the others step aside. Every copy also serves the remote to the rest of your network, so any browser can use it.
 
-<p align="center"><img src="docs/screenshots.png" alt="The remote in a wide window; below it the remote in a narrow window and the Devices panel" width="800"></p>
+<p align="center"><img src="docs/screenshots.png" alt="The remote in a wide window; below it, in narrow windows: Disconnected with the Reconnect key after another device took the speakers, connected again after asking another device to release them, and the Devices panel" width="800"></p>
 
 ## Features
 
